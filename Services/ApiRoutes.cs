@@ -4,6 +4,7 @@ namespace UniflowPortal.Services;
 
 public static partial class ApiRoutes
 {
+    // Leading slash so paths are consistent and IsSchemeScoped matches.
     const string V = "/api/v1/";
 
     // auth
@@ -48,8 +49,14 @@ public static partial class ApiRoutes
     public const string PaymentsAll = V + "payments/all";
     public const string PaymentsStats = V + "payments/stats";
     public static string PaymentsForCustomer(int id) => $"{V}payments/customer/{id}";
+
     public const string Receipts = V + "receipts";
+    public const string ReceiptsSummary = V + "receipts/summary";
+    public static string ReceiptsForCustomer(int id) => $"{Receipts}/customer/{id}";
+    public const string ReceiptsMe = V + "receipts/me"; // customer JWT — do not append schemeId
+    public static string Receipt(int id) => $"{Receipts}/{id}";
     public static string ReceiptPdf(int id) => $"{Receipts}/{id}/pdf";
+    public static string ReceiptNotify(int id) => $"{Receipts}/{id}/notify";
 
     // contributions
     public const string Contributions = V + "contributions";
@@ -63,7 +70,7 @@ public static partial class ApiRoutes
     public static string FinesForCustomer(int id) => $"{Fines}/customer/{id}";
     public static string FineStatus(int id) => $"{Fines}/{id}/status";
 
-    // sms
+    // notifications / sms
     public const string NotifCustomers = V + "notifications/customers";
     public const string NotifHistory = V + "notifications/history";
     public const string BillReminders = V + "admin/notifications/bill-reminders";
@@ -88,18 +95,24 @@ public static partial class ApiRoutes
         => $"{V}platform/schemes/{schemeId}/admins/{adminId}/toggle-status";
 
     //Scheme-scoped routes get ?schemeId= for SuperAdmin.
+    //Handles both "api/v1/..." and "/api/v1/..." forms.
     public static bool IsSchemeScoped(string url)
     {
         if (string.IsNullOrWhiteSpace(url))
             return false;
 
+        // Normalize: strip query, lower-case, ensure leading slash
         var path = url.Split('?', 2)[0].Trim().ToLowerInvariant();
         if (!path.StartsWith('/'))
             path = "/" + path;
 
+        // Never append on platform, auth, or customer "me" routes
         if (path.StartsWith("/api/v1/platform") || path.StartsWith("/api/v1/auth"))
             return false;
+        if (path.Contains("/receipts/me") || path.EndsWith("/me"))
+            return false;
 
+        // All other api/v1 ops are scheme-scoped for SuperAdmin
         if (path.StartsWith("/api/v1/"))
             return true;
 

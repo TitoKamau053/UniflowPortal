@@ -2,9 +2,12 @@
 @attribute [Authorize]
 
 @using System.Security.Claims
+@using Microsoft.JSInterop
 
 @inject PortalAuthStateProvider Auth
 @inject ApiClient Api
+@inject ISnackbar Snack
+@inject IJSRuntime JS
 
 @if (_loading)
 {
@@ -15,7 +18,6 @@ else if (!string.IsNullOrWhiteSpace(_error))
     <MudAlert Severity="Severity.Warning" Class="mb-4">@_error</MudAlert>
 }
 
-@* ════════════════════ SUPERADMIN ════════════════════ *@
 @if (_role == "superadmin")
 {
     <div class="dash-hero">
@@ -141,7 +143,6 @@ else if (!string.IsNullOrWhiteSpace(_error))
     </div>
 }
 
-@* ════════════════════ SCHEME ADMIN ════════════════════ *@
 else if (_role == "admin")
 {
     var revVal = _kpis.FirstOrDefault().value ?? Fmt.Kes(0);
@@ -220,7 +221,6 @@ else if (_role == "admin")
         </div>
     </div>
 
-    @* ── TAB 0: OVERVIEW ── *@
     @if (_tab == 0)
     {
         <div class="dash-chart-grid">
@@ -320,7 +320,6 @@ else if (_role == "admin")
         </div>
     }
 
-    @* ── TAB 1: COLLECTIONS ── *@
     else if (_tab == 1)
     {
         <div class="dash-workspace">
@@ -385,7 +384,6 @@ else if (_role == "admin")
         </div>
     }
 
-    @* ── TAB 2: CUSTOMERS ── *@
     else if (_tab == 2)
     {
         <div class="dash-workspace">
@@ -452,7 +450,6 @@ else if (_role == "admin")
         </div>
     }
 
-    @* ── TAB 3: ZONES ── *@
     else if (_tab == 3)
     {
         <div class="dash-workspace">
@@ -508,7 +505,6 @@ else if (_role == "admin")
         </div>
     }
 
-    @* ── TAB 4: REPORTS ── *@
     else if (_tab == 4)
     {
         <div class="dash-panel">
@@ -574,7 +570,8 @@ else if (_role == "customer")
         <button type="button" class="dash-tab @(_tab == 0 ? "active" : "")" @onclick="@(() => SetTab(0))">Overview</button>
         <button type="button" class="dash-tab @(_tab == 1 ? "active" : "")" @onclick="@(() => SetTab(1))">Bills</button>
         <button type="button" class="dash-tab @(_tab == 2 ? "active" : "")" @onclick="@(() => SetTab(2))">Payments</button>
-        <button type="button" class="dash-tab @(_tab == 3 ? "active" : "")" @onclick="@(() => SetTab(3))">Activity</button>
+        <button type="button" class="dash-tab @(_tab == 3 ? "active" : "")" @onclick="@(() => SetTab(3))">Receipts</button>
+        <button type="button" class="dash-tab @(_tab == 4 ? "active" : "")" @onclick="@(() => SetTab(4))">Activity</button>
     </div>
 
     <div class="dash-kpi-row">
@@ -640,6 +637,36 @@ else if (_role == "customer")
             </div>
         </div>
     </div>
+
+    <div class="dash-panel" style="margin-top:1rem">
+        <div class="dash-panel-head"><h3>My receipts</h3></div>
+        <div class="dash-panel-body">
+            <p class="dash-detail-sub">Download official payment receipts (PDF)</p>
+            <MudTable T="JsonRow" Items="_customerReceipts.Take(15)" Dense="true" Hover="true" Elevation="0" Context="row">
+                <HeaderContent>
+                    <MudTh>Receipt #</MudTh>
+                    <MudTh>Date</MudTh>
+                    <MudTh>Reference</MudTh>
+                    <MudTh>Amount</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd><span class="uf-mono">@row.Str("receiptNumber", "ReceiptNumber")</span></MudTd>
+                    <MudTd>@row.Str("paymentDate", "issuedAt", "createdAt")</MudTd>
+                    <MudTd><span class="uf-mono">@row.Str("transactionRef", "TransactionRef", "reference")</span></MudTd>
+                    <MudTd>@Fmt.Kes(row.Dec("amountPaid", "AmountPaid", "amount"))</MudTd>
+                    <MudTd Style="text-align:right">
+                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error"
+                                   StartIcon="@Icons.Material.Filled.PictureAsPdf"
+                                   OnClick="() => DownloadCustomerReceipt(row)">PDF</MudButton>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText Class="pa-4" Color="Color.Secondary">No receipts returned.</MudText>
+                </NoRecordsContent>
+            </MudTable>
+        </div>
+    </div>
 }
 else
 {
@@ -678,6 +705,7 @@ else
     private JsonRow? _customerSummary;
     private List<JsonRow> _customerBills = new();
     private List<JsonRow> _customerPayments = new();
+    private List<JsonRow> _customerReceipts = new();
     private decimal _customerBalance;
     private decimal _customerOutstanding;
     private decimal _customerPaymentTotal;
@@ -881,6 +909,9 @@ else
         _customerBills = b.Result.Rows();
         _customerPayments = p.Result.Rows();
 
+        var rc = await Api.Get(ApiRoutes.Q(ApiRoutes.ReceiptsMe, ("page", 1), ("pageSize", 20)));
+        _customerReceipts = rc.Success ? rc.Rows() : new();
+
         if (!s.Result.Success)
         {
             _error = s.Result.Message ?? "Could not load your account summary.";
@@ -922,4 +953,21 @@ else
             "zone",
             "zoneName") ?? string.Empty;
     }
+    private async Task DownloadCustomerReceipt(JsonRow r)
+    {
+        var id = r.Int("paymentId", "paymentID", "id");
+        if (id <= 0) { Snack.Add("Receipt id missing", Severity.Warning); return; }
+        var bytes = await Api.Bytes(ApiRoutes.ReceiptPdf(id));
+        if (bytes is null || bytes.Length == 0)
+        {
+            Snack.Add("Could not download receipt", Severity.Error);
+            return;
+        }
+        var name = r.Str("receiptNumber", "ReceiptNumber");
+        if (string.IsNullOrWhiteSpace(name)) name = $"receipt-{id}";
+        if (!name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) name += ".pdf";
+        await JS.InvokeVoidAsync("saveFile", name, Convert.ToBase64String(bytes), "application/pdf");
+        Snack.Add("Receipt downloaded", Severity.Success);
+    }
+
 }
