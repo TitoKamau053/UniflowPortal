@@ -1,0 +1,529 @@
+/* =========================================================
+   Uniflow Header – Airtel Developer style
+   Image avatars • Connected dropdowns • Profile replica
+   ========================================================= */
+
+.menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1030;
+    background: transparent;
+}
+
+/* ── Header ── */
+.uf-header {
+    background: #ffffff !important;
+    height: 64px;
+    width: 100%;
+    position: sticky;
+    top: 0;
+    z-index: 1040;
+    border-bottom: 1px solid #eeeeee;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
+}
+
+.uf-header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+    gap: 24px;
+}
+
+/* ── Brand ── */
+.uf-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    flex-shrink: 0;
+    color: inherit;
+}
+
+.uf-brand-logo {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+}
+
+.uf-brand-name {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #ed1c24;
+    letter-spacing: -0.03em;
+    text-transform: uppercase;
+    line-height: 1;
+}
+
+.uf-brand-divider {
+    width: 1px;
+    height: 18px;
+    background: #dddddd;
+    margin: 0 2px;
+}
+
+.uf-brand-tag {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #666666;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+/* ── Nav links ── */
+.uf-nav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    justify-content: flex-end;
+    height: 100%;
+}
+
+.mud-menu {
+    height: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.uf-nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    height: 100%;
+    padding: 0 14px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #333333;
+    text-decoration: none;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.15s ease;
+}
+
+.uf-nav-link:hover,
+.uf-nav-link.active {
+    color: #ed1c24;
+}
+
+.uf-nav-link.active {
+    font-weight: 600;
+}
+
+.uf-chevron {
+    font-size: 16px !important;
+    opacity: 0.5;
+}
+
+/* ══════════════════════════════════════════════════════════
+   NAV DROPDOWNS – extended from the button (tight gap)
+   Same soft card language as profile menu
+   ══════════════════════════════════════════════════════════ */
+
+::deep .uf-dropdown {
+    border-radius: 12px !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04) !important;
+    border: 1px solid #ececec !important;
+    padding: 6px !important;
+    min-width: 180px;
+    background: #ffffff !important;
+    /* sit tight under the trigger – “extended” feel */
+    margin-top: 2px !important;
+    overflow: hidden;
+}
+
+::deep .uf-dropdown-item {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    font-size: 0.875rem !important;
+    font-weight: 500 !important;
+    color: #333333 !important;
+    padding: 10px 12px !important;
+    border-radius: 8px !important;
+    margin: 0 !important;
+    min-height: 40px !important;
+    transition: background 0.12s ease, color 0.12s ease !important;
+}
+
+::deep .uf-dropdown-item:hover {
+    background: #f3f4f6 !important;
+    color: #1a1a1a !important;
+}
+
+::deep .uf-dropdown-item .uf-dd-icon,
+::deep .uf-dropdown-item .mud-icon-root {
+    font-size: 18px !important;
+    width: 18px !important;
+    height: 18px !important;
+    color: #6b7280 !important;
+    flex-shrink: 0;
+}
+
+::deep .uf-dropdown-item:hover .uf-dd-icon,
+::deep .uf-dropdown-item:hover .mud-icon-root {
+    color: #ed1c24 !important;
+}
+
+.uf-dd-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #d1d5db;
+    flex-shrink: 0;
+}
+
+::deep .uf-dropdown-item:hover .uf-dd-dot {
+    background: #ed1c24;
+}
+
+/* ── Header right ── */
+.uf-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.uf-toggler {
+    display: none;
+    background: transparent;
+    border: none;
+    padding: 6px;
+    color: #333;
+    cursor: pointer;
+    border-radius: 6px;
+}
+
+.uf-toggler:hover {
+    background: #f5f5f5;
+}
+
+/* ── Profile trigger ── */
+.uf-profile-wrap {
+    position: relative;
+}
+
+.uf-profile-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 10px 3px 3px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.uf-profile-btn:hover {
+    border-color: #e8e8e8;
+    background: #fafafa;
+}
+
+/* Image avatars (DiceBear / any URL) */
+.uf-avatar-img {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: #f3f4f6;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px #e5e7eb;
+}
+
+.uf-avatar-img.lg {
+    width: 44px;
+    height: 44px;
+    border-width: 2px;
+    box-shadow: 0 0 0 2px #ed1c24;
+}
+
+.uf-profile-name {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #222;
+    max-width: 100px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ══════════════════════════════════════════════════════════
+   PROFILE DROPDOWN – replica of reference card
+   Name+role left, avatar right • pill active item
+   ══════════════════════════════════════════════════════════ */
+
+.uf-profile-menu {
+    position: absolute;
+    top: calc(100% + 4px); /* tight – feels extended from the button */
+    right: 0;
+    width: 280px;
+    background: #ffffff;
+    border: 1px solid #ececec;
+    border-radius: 16px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+    z-index: 1050;
+    animation: ufFadeIn 0.15s ease;
+}
+
+@keyframes ufFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Head: name/role LEFT, avatar RIGHT (like reference) */
+.uf-profile-menu-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 16px 12px;
+    margin: 8px 8px 0;
+    background: #f9fafb;
+    border-radius: 12px;
+}
+
+.uf-profile-menu-meta {
+    min-width: 0;
+    flex: 1;
+}
+
+.uf-profile-menu-meta strong {
+    display: block;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #111827;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.uf-profile-menu-meta small {
+    display: block;
+    font-size: 0.78rem;
+    color: #9ca3af;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.uf-profile-menu-body {
+    padding: 6px 8px 8px;
+}
+
+.uf-profile-menu-divider {
+    height: 1px;
+    background: #f0f0f0;
+    margin: 2px 16px;
+}
+
+.uf-profile-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 12px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #374151;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.12s ease, color 0.12s ease;
+}
+
+.uf-profile-item:hover {
+    background: #f3f4f6;
+    color: #111827;
+}
+
+/* Active / selected pill (like “Profile” in the reference) */
+.uf-profile-item.active {
+    background: #f3f4f6;
+    color: #111827;
+    font-weight: 600;
+}
+
+.uf-profile-item-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    color: #6b7280;
+    flex-shrink: 0;
+}
+
+.uf-profile-item:hover .uf-profile-item-icon,
+.uf-profile-item.active .uf-profile-item-icon {
+    color: #374151;
+}
+
+.uf-profile-item-label {
+    flex: 1;
+}
+
+.uf-profile-item.danger {
+    color: #dc2626;
+}
+
+.uf-profile-item.danger .uf-profile-item-icon {
+    color: #dc2626;
+}
+
+.uf-profile-item.danger:hover {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.uf-profile-item.danger:hover .uf-profile-item-icon {
+    color: #b91c1c;
+}
+
+/* ── Responsive ── */
+
+/* ── Mobile ── */
+@media (max-width: 960px) {
+    .uf-header-inner {
+        padding: 0 14px;
+        gap: 10px;
+    }
+
+    .uf-nav {
+        position: absolute;
+        top: 64px;
+        left: 0;
+        right: 0;
+        background: #ffffff;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        padding: 10px 12px 14px;
+        border-bottom: 1px solid #eee;
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.1);
+        display: none;
+        height: auto;
+        gap: 2px;
+        z-index: 1035;
+        margin: 0;
+    }
+
+    .uf-nav.open {
+        display: flex !important;
+    }
+
+    .uf-nav .mud-menu {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+
+    .uf-nav-link {
+        width: 100%;
+        height: auto;
+        padding: 12px 14px;
+        border-radius: 8px;
+        justify-content: flex-start;
+        text-align: left;
+        font-size: 0.9rem;
+    }
+
+    .uf-nav-link:hover,
+    .uf-nav-link.active {
+        background: #fff1f1;
+        color: #ed1c24;
+    }
+
+    /* Mud dropdown items inside mobile sheet */
+    ::deep .uf-dropdown {
+        position: static !important;
+        box-shadow: none !important;
+        border: none !important;
+        margin: 0 0 4px 12px !important;
+        padding: 0 !important;
+        min-width: 0 !important;
+        width: calc(100% - 12px) !important;
+        border-radius: 0 !important;
+    }
+
+    ::deep .uf-dropdown-item {
+        padding: 10px 14px !important;
+        border-radius: 6px !important;
+    }
+
+    .uf-toggler {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .uf-profile-name {
+        display: none;
+    }
+
+    .uf-brand-tag {
+        display: none;
+    }
+
+    .uf-brand-divider {
+        display: none;
+    }
+
+    .menu-backdrop {
+        background: rgba(0, 0, 0, 0.25);
+    }
+}
+
+@media (max-width: 600px) {
+    .uf-header {
+        height: 56px;
+    }
+
+    .uf-header-inner {
+        padding: 0 12px;
+    }
+
+    .uf-nav {
+        top: 56px;
+    }
+
+    .uf-profile-menu {
+        width: min(280px, calc(100vw - 24px));
+        right: 0;
+    }
+
+    .uf-brand-name {
+        font-size: 1.05rem;
+    }
+}
+
+/* SuperAdmin scheme switcher in header */
+.uf-scheme-switch {
+    flex-shrink: 0;
+    min-width: 160px;
+    max-width: 220px;
+}
+.uf-scheme-select {
+    font-size: 0.8rem;
+}
+.uf-scheme-select .mud-input-slot,
+.uf-scheme-select .mud-select {
+    font-size: 0.8rem !important;
+}
+@media (max-width: 960px) {
+    .uf-scheme-switch {
+        display: none;
+    }
+}

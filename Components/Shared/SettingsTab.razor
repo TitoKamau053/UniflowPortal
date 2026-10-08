@@ -1,0 +1,38 @@
+@inject ApiClient Api
+@inject ISnackbar Snack
+@if (_loading) { <MudProgressLinear Indeterminate="true" /> }
+else
+{
+    <MudPaper Elevation="0" Class="uf-card pa-4">
+        <MudGrid Spacing="2">
+            @foreach (var s in _items)
+            {
+                <MudItem xs="12" md="6"><MudTextField @bind-Value="s.Value" Label="@Fmt.Pretty(s.Key)" Variant="Variant.Outlined" /></MudItem>
+            }
+            @if (!_items.Any()) { <MudItem xs="12"><MudText Color="Color.Secondary">No settings found for this category. Use "Initialize defaults" first.</MudText></MudItem> }
+        </MudGrid>
+        <MudButton Class="mt-4" Variant="Variant.Filled" Color="Color.Primary" Disabled="_items.Count == 0" OnClick="Save">Save @Category settings</MudButton>
+    </MudPaper>
+}
+@code {
+    [Parameter, EditorRequired] public string Category { get; set; } = "";
+    class Item { public string Key = ""; public string? Value { get; set; } }
+    List<Item> _items = new(); bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var r = await Api.Get(ApiRoutes.SettingsConfig(Category));
+        if (!r.Success) Snack.Add(r.Message ?? "Failed to load settings", Severity.Error);
+        if (r.Data.ValueKind == System.Text.Json.JsonValueKind.Array)
+            _items = r.Rows().Select(x => new Item { Key = x.Str("key", "settingKey"), Value = x.Str("value", "settingValue") }).Where(i => i.Key != "").ToList();
+        else if (r.Data.ValueKind == System.Text.Json.JsonValueKind.Object)
+            _items = r.Item()!.Scalars.Select(s => new Item { Key = s.Name, Value = s.Value.ToString() }).ToList();
+        _loading = false;
+    }
+
+    async Task Save()
+    {
+        var r = await Api.Put(ApiRoutes.SettingsConfig(Category), _items.Select(i => new { category = Category, key = i.Key, value = i.Value }).ToArray());
+        Snack.Add(r.Success ? "Settings saved" : r.Message ?? "Failed", r.Success ? Severity.Success : Severity.Error);
+    }
+}

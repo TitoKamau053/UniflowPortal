@@ -1,0 +1,44 @@
+@page "/fines"
+@attribute [Authorize(Roles = "admin,superadmin")]
+@inject ApiClient Api
+@inject PortalSession Session
+@inject NavigationManager Nav
+@inject IDialogService Dialogs
+@inject ISnackbar Snack
+
+<PageHeader Title="Fines" Subtitle="Late fines and penalties applied to customers">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="Apply">Apply fine</MudButton>
+</PageHeader>
+
+<DataGrid @ref="_grid" Url="@ApiRoutes.Fines" Cols="_cols">
+    <Actions Context="r">
+        <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+            @foreach (var s in _statuses) { var st = s; <MudMenuItem OnClick="() => SetStatus(r, st)">Mark @st</MudMenuItem> }
+        </MudMenu>
+    </Actions>
+</DataGrid>
+
+@code {
+    protected override void OnInitialized()
+    {
+        SchemeGuard.EnsureSchemeOrRedirect(Session, Nav, Snack);
+    }
+
+    DataGrid? _grid;
+    readonly string[] _statuses = { "Pending", "Paid", "Waived" };   // verify against your AppliedFines status values
+    readonly List<Col> _cols = new()
+    {
+        new("Customer", new[] { "fullName", "customerName", "name" }, ColKind.Text, new[] { "accountNo", "accountNumber" }),
+        new("Reason", new[] { "reason" }),
+        new("Amount", new[] { "amount" }, ColKind.Money),
+        new("Applied", new[] { "appliedDate", "createdAt" }, ColKind.Date),
+        new("Status", new[] { "status" }, ColKind.Status),
+    };
+    async Task Apply() { var d = await Dialogs.ShowAsync<ApplyFineDialog>("Apply fine", Fmt.Dlg); if (!(await d.Result)!.Canceled) await _grid!.Reload(); }
+    async Task SetStatus(JsonRow r, string s)
+    {
+        var x = await Api.Put(ApiRoutes.FineStatus(r.Int("fineId", "id")), new { status = s });
+        Snack.Add(x.Success ? "Fine updated" : x.Message ?? "Failed", x.Success ? Severity.Success : Severity.Error);
+        await _grid!.Reload();
+    }
+}

@@ -1,0 +1,27 @@
+@switch (Col.Kind)
+{
+    case ColKind.Status:
+        <StatusChip Text="@Fmt.Status(Row, Col.Names)" />
+        break;
+    case ColKind.Balance:
+        var b = Row.Dec(Col.Names);
+        if (b > 0) { <span class="uf-debt">Debt: @Fmt.Kes(b)</span> }
+        else if (b < 0) { <span class="uf-credit">Overpaid: @Fmt.Kes(-b)</span> }
+        else { <span>KES 0.00</span> }
+        break;
+    case ColKind.Mono:
+        <span class="uf-mono">@Fmt.Cell(Row, Col.Kind, Col.Names)</span>
+        break;
+    default:
+        <span>@Fmt.Cell(Row, Col.Kind, Col.Names)</span>
+        break;
+}
+@if (Col.SubNames is not null)
+{
+    var sub = Fmt.Cell(Row, Col.SubKind, Col.SubNames);
+    if (sub != "") { <div class="uf-sub">@Col.SubPrefix@sub</div> }
+}
+@code {
+    [Parameter, EditorRequired] public JsonRow Row { get; set; } = default!;
+    [Parameter, EditorRequired] public Col Col { get; set; } = default!;
+}

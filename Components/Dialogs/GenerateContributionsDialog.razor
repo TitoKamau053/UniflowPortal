@@ -1,0 +1,25 @@
+@inject ApiClient Api
+@inject ISnackbar Snack
+<MudDialog>
+    <DialogContent>
+        <MudDatePicker @bind-Date="_month" Label="Contribution month" OpenTo="OpenTo.Month" DateFormat="MMMM yyyy" Variant="Variant.Outlined" Class="mb-3" />
+        <MudNumericField T="decimal" @bind-Value="_amount" Label="Amount required per customer (KES)" Min="0" Variant="Variant.Outlined" />
+        @if (_err is not null) { <MudAlert Severity="Severity.Error" Class="mt-3">@_err</MudAlert> }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy" OnClick="Submit">Generate</MudButton>
+    </DialogActions>
+</MudDialog>
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = default!;
+    DateTime? _month = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1); decimal _amount; string? _err; bool _busy;
+    async Task Submit()
+    {
+        if (_month is null || _amount <= 0) { _err = "Choose a month and an amount above zero."; return; }
+        _busy = true; _err = null;
+        var r = await Api.Post(ApiRoutes.ContributionsGenerate, new { contributionMonth = Fmt.Iso(new DateTime(_month.Value.Year, _month.Value.Month, 1)), amountRequired = _amount });
+        _busy = false;
+        if (r.Success) { Snack.Add(r.Message ?? "Contributions generated", Severity.Success); MudDialog.Close(DialogResult.Ok(true)); } else _err = r.Message;
+    }
+}

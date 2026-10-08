@@ -1,0 +1,48 @@
+@inject ApiClient Api
+@inject ISnackbar Snack
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12"><MudTextField @bind-Value="_name" Label="Full name" Variant="Variant.Outlined" Required="true" /></MudItem>
+            @if (!Edit)
+            {
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_nid" Label="National ID" Variant="Variant.Outlined" /></MudItem>
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_acc" Label="Account no (blank = auto-generate)" Variant="Variant.Outlined" /></MudItem>
+            }
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_phone" Label="Phone" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_loc" Label="Location" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_zone" Label="Zone" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_meter" Label="Meter number" Variant="Variant.Outlined" /></MudItem>
+            @if (!Edit) { <MudItem xs="12"><MudDatePicker @bind-Date="_conn" Label="Connection date" Variant="Variant.Outlined" /></MudItem> }
+        </MudGrid>
+        @if (_err is not null) { <MudAlert Severity="Severity.Error" Class="mt-3">@_err</MudAlert> }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy" OnClick="Submit">@(Edit ? "Save changes" : "Add customer")</MudButton>
+    </DialogActions>
+</MudDialog>
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public JsonRow? Row { get; set; }
+    bool Edit => Row is not null;
+    string _name = "", _nid = "", _acc = "", _phone = "", _loc = "", _zone = "", _meter = "", _err; DateTime? _conn = DateTime.Today; bool _busy;
+
+    protected override void OnInitialized()
+    {
+        if (Row is null) return;
+        _name = Row.Str("fullName", "customerName", "name"); _phone = Row.Str("phone", "phoneNumber"); _loc = Row.Str("location");
+        _zone = Row.Str("zone", "zoneName"); _meter = Row.Str("meterNumber", "meterNo");
+    }
+
+    async Task Submit()
+    {
+        if (string.IsNullOrWhiteSpace(_name)) { _err = "Full name is required"; return; }
+        _busy = true; _err = null;
+        ApiResponse r = Edit
+            ? await Api.Put(ApiRoutes.Customer(Row!.Int("customerId", "id")), new { fullName = _name, phone = _phone, location = _loc, zone = _zone, meterNumber = _meter })
+            : await Api.Post(ApiRoutes.Customers, new { fullName = _name, nationalID = _nid, accountNo = string.IsNullOrWhiteSpace(_acc) ? null : _acc, phone = _phone, location = _loc, zone = _zone, meterNumber = _meter, connectionDate = Fmt.Iso(_conn) });
+        _busy = false;
+        if (r.Success) { Snack.Add(Edit ? "Customer updated" : "Customer added", Severity.Success); MudDialog.Close(DialogResult.Ok(true)); } else _err = r.Message;
+    }
+}

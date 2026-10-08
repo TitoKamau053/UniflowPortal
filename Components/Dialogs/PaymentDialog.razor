@@ -1,0 +1,33 @@
+@inject ApiClient Api
+@inject ISnackbar Snack
+<MudDialog>
+    <DialogContent>
+        @if (CustomerId == 0) { <CustomerPicker @bind-Value="_cust" /> }
+        else { <MudText Typo="Typo.subtitle1" Class="mb-2">@CustomerName</MudText> }
+        <MudNumericField T="decimal" @bind-Value="_amount" Label="Amount (KES)" Min="0" Variant="Variant.Outlined" Class="mt-3" />
+        <MudTextField @bind-Value="_ref" Label="Reference (optional)" Variant="Variant.Outlined" Class="mt-3" />
+        <MudDatePicker @bind-Date="_date" Label="Payment date (optional)" Variant="Variant.Outlined" Class="mt-3" />
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">The database allocates the payment to fines first, then bills, then contributions.</MudText>
+        @if (_err is not null) { <MudAlert Severity="Severity.Error" Class="mt-3">@_err</MudAlert> }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy" OnClick="Submit">Record payment</MudButton>
+    </DialogActions>
+</MudDialog>
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int CustomerId { get; set; }
+    [Parameter] public string? CustomerName { get; set; }
+    JsonRow? _cust; decimal _amount; string _ref = "", _err; DateTime? _date; bool _busy;
+
+    async Task Submit()
+    {
+        var id = CustomerId != 0 ? CustomerId : _cust?.Int("customerId", "id") ?? 0;
+        if (id == 0 || _amount <= 0) { _err = "Pick a customer and enter an amount above zero."; return; }
+        _busy = true; _err = null;
+        var r = await Api.Post(ApiRoutes.PaymentProcess, new { customerId = id, amountPaid = _amount, transactionRef = string.IsNullOrWhiteSpace(_ref) ? null : _ref, paymentDate = _date });
+        _busy = false;
+        if (r.Success) { Snack.Add("Payment recorded", Severity.Success); MudDialog.Close(DialogResult.Ok(true)); } else _err = r.Message;
+    }
+}

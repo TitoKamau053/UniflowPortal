@@ -1,0 +1,31 @@
+@using MudBlazor
+@inject ApiClient Api
+@inject ISnackbar Snack
+
+<MudDialog>
+    <DialogContent>
+        <CustomerPicker @bind-Value="_cust" />
+        <MudNumericField T="decimal" @bind-Value="_amount" Label="Fine amount (KES)" Min="0" Variant="Variant.Outlined" Class="mt-3" />
+        <MudTextField @bind-Value="_reason" Label="Reason" Lines="2" Variant="Variant.Outlined" Class="mt-3" />
+        <MudNumericField T="int?" @bind-Value="_billId" Label="Bill ID (optional)" Variant="Variant.Outlined" Class="mt-3" />
+        <MudDatePicker @bind-Date="_date" Label="Applied date" Variant="Variant.Outlined" Class="mt-3" />
+        @if (_err is not null) { <MudAlert Severity="Severity.Error" Class="mt-3">@_err</MudAlert> }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy" OnClick="Submit">Apply fine</MudButton>
+    </DialogActions>
+</MudDialog>
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = default!;
+    JsonRow? _cust; decimal _amount; string _reason = "", _err; int? _billId; DateTime? _date = DateTime.Today; bool _busy;
+    async Task Submit()
+    {
+        var id = _cust?.Int("customerId", "id") ?? 0;
+        if (id == 0 || _amount <= 0) { _err = "Pick a customer and enter an amount above zero."; return; }
+        _busy = true; _err = null;
+        var r = await Api.Post(ApiRoutes.Fines, new { customerId = id, billId = _billId, amount = _amount, reason = _reason, appliedDate = Fmt.Iso(_date) });
+        _busy = false;
+        if (r.Success) { Snack.Add("Fine applied", Severity.Success); MudDialog.Close(DialogResult.Ok(true)); } else _err = r.Message;
+    }
+}

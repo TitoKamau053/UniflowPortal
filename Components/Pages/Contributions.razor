@@ -1,0 +1,46 @@
+@page "/contributions"
+@attribute [Authorize(Roles = "admin,superadmin")]
+@inject ApiClient Api
+@inject PortalSession Session
+@inject NavigationManager Nav
+@inject ISnackbar Snack
+@inject IDialogService Dialogs
+
+<PageHeader Title="Contributions" Subtitle="Required customer contributions and payment status">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PlaylistAdd" OnClick="Generate">Generate contributions</MudButton>
+</PageHeader>
+
+<StatStrip Row="_summary" Max="4" />
+
+<MudSelect T="string" @bind-Value="_status" Label="Status" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" Style="max-width:260px" SelectedValuesChanged="_ => _grid!.Reload()">
+    <MudSelectItem T="string" Value="@("")">All statuses</MudSelectItem>
+    @foreach (var s in new[] { "Pending", "Partial", "Paid", "Overdue" }) { <MudSelectItem T="string" Value="@s">@s</MudSelectItem> }
+</MudSelect>
+
+<DataGrid @ref="_grid" Url="@ApiRoutes.Contributions" Cols="_cols" Query="Q">
+    <Actions Context="r"><MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="() => MarkPaid(r)">Mark paid</MudButton></Actions>
+</DataGrid>
+
+@code {
+    DataGrid? _grid; JsonRow? _summary; string _status = "";
+    readonly List<Col> _cols = new()
+    {
+        new("Customer", new[] { "fullName", "customerName", "name" }, ColKind.Text, new[] { "accountNo", "accountNumber" }),
+        new("Month", new[] { "contributionMonth" }, ColKind.Month),
+        new("Required", new[] { "amountRequired" }, ColKind.Money),
+        new("Paid", new[] { "amountPaid" }, ColKind.Money),
+        new("Status", new[] { "status" }, ColKind.Status),
+    };
+    (string, object?)[] Q() => new (string, object?)[] { ("status", _status) };
+    protected override async Task OnInitializedAsync()
+    {
+        if (!SchemeGuard.EnsureSchemeOrRedirect(Session, Nav, Snack)) return;
+         var r = await Api.Get(ApiRoutes.ContributionsSummary); _summary = r.Item(); }
+    async Task Generate() { var d = await Dialogs.ShowAsync<GenerateContributionsDialog>("Generate contributions", Fmt.Dlg); if (!(await d.Result)!.Canceled) await _grid!.Reload(); }
+    async Task MarkPaid(JsonRow r)
+    {
+        var p = new DialogParameters { ["ContributionId"] = r.Int("contributionId", "id"), ["Suggested"] = r.Dec("amountRequired") - r.Dec("amountPaid") };
+        var d = await Dialogs.ShowAsync<MarkPaidDialog>("Mark contribution paid", p, Fmt.Dlg);
+        if (!(await d.Result)!.Canceled) await _grid!.Reload();
+    }
+}

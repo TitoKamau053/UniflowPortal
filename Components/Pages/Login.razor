@@ -1,0 +1,1086 @@
+@page "/login"
+@page "/login/{Portal}"
+
+@layout LoginLayout
+
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
+
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<div class="login-page">
+
+    <div class="login-video-layer" aria-hidden="true">
+
+        <video id="loginVideoA"
+               class="login-background-video video-visible"
+               muted
+               playsinline
+               preload="auto">
+            <source src="/videos/login-background.mp4" type="video/mp4" />
+        </video>
+
+        <video id="loginVideoB"
+               class="login-background-video video-hidden"
+               muted
+               playsinline
+               preload="auto">
+            <source src="/videos/login-background.mp4" type="video/mp4" />
+        </video>
+
+    </div>
+
+    <div class="login-background-overlay"></div>
+
+    <main class="login-main">
+
+        <div class="login-brand">
+
+            <img src="/images/uniflow-logo.png?v=2"
+                 alt="Uniflow logo"
+                 class="uniflow-logo" />
+
+            <div class="login-brand-name">
+                UNIFLOW SOFTWARE SLT.
+            </div>
+
+            <div class="login-brand-caption">
+                Management Portal
+            </div>
+
+        </div>
+
+        <section class="login-card">
+
+            @if (PortalType == "choose")
+            {
+                <div class="login-heading">
+
+                    <span class="login-eyebrow">
+                        WELCOME
+                    </span>
+
+                    <h1>
+                        Access your portal
+                    </h1>
+
+                    <p>
+                        Select the portal associated with your account.
+                    </p>
+
+                </div>
+
+                <div class="portal-list">
+
+                    <a href="/login/superadmin"
+                       class="portal-option">
+
+                        <span class="portal-icon">
+                            <i class="bi bi-shield-lock-fill"></i>
+                        </span>
+
+                        <span class="portal-copy">
+                            <strong>Platform Super Admin</strong>
+                            <small>Manage the Uniflow platform</small>
+                        </span>
+
+                        <span class="portal-chevron">
+                            <i class="bi bi-chevron-right"></i>
+                        </span>
+
+                    </a>
+
+
+                    <a href="/login/scheme-admin"
+                       class="portal-option">
+
+                        <span class="portal-icon">
+                            <i class="bi bi-building"></i>
+                        </span>
+
+                        <span class="portal-copy">
+                            <strong>Scheme Administrator</strong>
+                            <small>Manage scheme operations</small>
+                        </span>
+
+                        <span class="portal-chevron">
+                            <i class="bi bi-chevron-right"></i>
+                        </span>
+
+                    </a>
+
+
+                    <a href="/login/customer"
+                       class="portal-option">
+
+                        <span class="portal-icon">
+                            <i class="bi bi-person-vcard-fill"></i>
+                        </span>
+
+                        <span class="portal-copy">
+                            <strong>Customer Portal</strong>
+                            <small>View your account and services</small>
+                        </span>
+
+                        <span class="portal-chevron">
+                            <i class="bi bi-chevron-right"></i>
+                        </span>
+
+                    </a>
+
+                </div>
+            }
+            else
+            {
+                <div class="login-heading">
+
+                    <span class="login-eyebrow">
+                        SECURE ACCOUNT ACCESS
+                    </span>
+
+                    <h1>
+                        @PortalTitle
+                    </h1>
+
+                    <p>
+                        @PortalSubtitle
+                    </p>
+
+                </div>
+
+                @if (_error is not null)
+                {
+                    <MudAlert Severity="Severity.Error"
+                              Variant="Variant.Outlined"
+                              Dense="true"
+                              Class="login-error">
+
+                        @_error
+                    </MudAlert>
+                }
+
+                <div class="login-form">
+                    
+                    <label class="login-label"
+                           for="login-username">
+                        @(PortalType == "customer"
+                            ? "Account number"
+                            : "Username")
+                    </label>
+
+                    <MudTextField @bind-Value="_user"
+                                  Id="login-username"
+                                  Placeholder="@(PortalType == "customer"
+                                                   ? "Enter your account number"
+                                                   : "Enter your username")"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  FullWidth="true"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.PersonOutline"
+                                  Disabled="_busy"
+                                  Class="login-input" />
+
+                    <label class="login-label"
+                           for="login-password">
+                        Password
+                    </label>
+
+                    <MudTextField @bind-Value="_pw"
+                                  Id="login-password"
+                                  Placeholder="Enter your password"
+                                  InputType="InputType.Password"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  FullWidth="true"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Lock"
+                                  OnKeyDown="OnKey"
+                                  Disabled="_busy"
+                                  Class="login-input" />
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               FullWidth="true"
+                               Size="Size.Large"
+                               Disabled="_busy"
+                               OnClick="Submit"
+                               Class="login-submit">
+
+                        @if (_busy)
+                        {
+                            <MudProgressCircular Indeterminate="true"
+                                                 Size="Size.Small"
+                                                 Class="mr-2" />
+                            <span>
+                                Signing in, Please Wait
+                            </span>
+                        }
+                        else
+                        {
+                            <span>
+                                Sign in
+                            </span>
+                            <MudIcon Icon="@Icons.Material.Filled.ArrowForward"
+                                     Class="ml-2" />
+                        }
+                    </MudButton>
+
+                </div>
+                <div class="login-back">
+
+                    <a href="/login"
+                       class="login-back-button">
+                        <i class="bi bi-arrow-left"></i>
+                        <span>Back to portal selection</span>
+                    </a>
+                </div>
+            }
+
+            <div class="login-card-footer">
+
+                <MudIcon Icon="@Icons.Material.Filled.Shield"
+                         Size="Size.Small" />
+
+                <span>
+                    Secure access to UniFlow
+                </span>
+
+            </div>
+
+        </section>
+
+        <!-- Page footer -->
+
+        <footer class="login-footer">
+
+            © @DateTime.Now.Year UniFlow. All rights reserved.
+
+        </footer>
+
+    </main>
+
+</div>
+
+<style>
+
+    .login-page {
+        position: fixed;
+        inset: 0;
+
+        z-index: 9999;
+
+        width: 100%;
+        height: 100vh;
+        height: 100dvh;
+
+        overflow-x: hidden;
+        overflow-y: auto;
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        padding: 32px 18px;
+
+        box-sizing: border-box;
+
+        background: #071522;
+
+        font-family:
+            Inter,
+            "Segoe UI",
+            sans-serif;
+    }
+
+    .login-video-layer {
+        position: absolute;
+        inset: 0;
+
+        z-index: 0;
+
+        overflow: hidden;
+
+        background: #071522;
+    }
+
+    .login-background-video {
+        position: absolute;
+        inset: 0;
+
+        width: 100%;
+        height: 100%;
+
+        object-fit: cover;
+        object-position: center;
+
+        pointer-events: none;
+
+        opacity: 0;
+
+        transition:
+            opacity 1.15s ease-in-out;
+
+        will-change: opacity;
+    }
+
+    .login-background-video.video-visible {
+        opacity: 1;
+    }
+
+    .login-background-video.video-hidden {
+        opacity: 0;
+    }
+
+    .login-background-overlay {
+        position: absolute;
+        inset: 0;
+
+        z-index: 1;
+
+        background:
+            linear-gradient(
+                135deg,
+                rgba(5, 19, 34, .76),
+                rgba(5, 28, 46, .48)
+            ),
+            linear-gradient(
+                0deg,
+                rgba(2, 12, 23, .48),
+                rgba(2, 12, 23, .15)
+            );
+
+        pointer-events: none;
+    }
+
+    .login-main {
+        position: relative;
+
+        z-index: 2;
+
+        width: 100%;
+        max-width: 500px;
+
+        margin: auto;
+
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .login-brand {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+
+        margin-bottom: 30px;
+
+        color: #fff;
+
+        text-align: center;
+    }
+
+    .login-brand img {
+        display: block;
+
+        width: 108px;
+        height: 108px;
+
+        object-fit: contain;
+        object-position: center;
+
+        margin-bottom: 13px;
+
+        background: transparent;
+
+        border: none;
+
+        box-shadow: none;
+
+        filter:
+            drop-shadow(
+                0 7px 24px rgba(0, 0, 0, .32)
+            );
+    }
+
+    .login-brand-name {
+        font-size: 27px;
+
+        font-weight: 750;
+
+        letter-spacing: .5px;
+
+        line-height: 1.2;
+    }
+
+    .login-brand-caption {
+        margin-top: 6px;
+
+        color:
+            rgba(255, 255, 255, .76);
+
+        font-size: 14px;
+
+        letter-spacing: 1.7px;
+
+        text-transform: uppercase;
+    }
+
+    .login-card {
+        width: 100%;
+
+        box-sizing: border-box;
+
+        padding: 42px 42px 28px;
+
+        border:
+            1px solid
+            rgba(255, 255, 255, .68);
+
+        border-radius: 26px;
+
+        background:
+            rgba(255, 255, 255, .97);
+
+        box-shadow:
+            0 28px 90px
+            rgba(0, 0, 0, .28);
+
+        backdrop-filter: blur(18px);
+
+        -webkit-backdrop-filter:
+            blur(18px);
+    }
+
+    .login-heading {
+        margin-bottom: 27px;
+
+        text-align: center;
+    }
+
+    .login-eyebrow {
+        display: inline-block;
+
+        margin-bottom: 12px;
+
+        color: #4776bd;
+
+        font-size: 12px;
+
+        font-weight: 750;
+
+        letter-spacing: 2px;
+    }
+
+    .login-heading h1 {
+        margin: 0;
+
+        color: #15263b;
+
+        font-size: 31px;
+
+        font-weight: 750;
+
+        letter-spacing: -.8px;
+
+        line-height: 1.25;
+    }
+
+    .login-heading p {
+        margin: 11px 0 0;
+
+        color: #78879a;
+
+        font-size: 15px;
+
+        line-height: 1.6;
+    }
+
+    .portal-list {
+        display: flex;
+
+        flex-direction: column;
+
+        gap: 15px;
+    }
+
+    .portal-option {
+        width: 100%;
+
+        display: flex;
+        align-items: center;
+        gap: 16px;
+
+        min-height: 78px;
+        padding: 14px 16px;
+
+        box-sizing: border-box;
+
+        border: 1px solid #e4e9ef;
+        border-radius: 14px;
+
+        background: #ffffff;
+
+        color: #172b43;
+        font-family: inherit;
+        text-align: left;
+        text-decoration: none;
+
+        cursor: pointer;
+
+        transition:
+            background .18s ease,
+            border-color .18s ease,
+            transform .18s ease,
+            box-shadow .18s ease;
+    }
+
+    .portal-option:hover {
+        border-color: #c9d8eb;
+
+        background: #f9fbfd;
+
+        color: #172b43;
+        text-decoration: none;
+
+        transform: translateY(-1px);
+
+        box-shadow:
+            0 6px 18px rgba(25, 60, 100, .07);
+    }
+
+    .portal-option:active {
+        transform: translateY(0);
+    }
+
+    .portal-option:disabled {
+        opacity: .6;
+
+        cursor: not-allowed;
+    }
+
+    .portal-icon {
+        display: grid;
+        place-items: center;
+
+        flex: 0 0 44px;
+
+        width: 44px;
+        height: 44px;
+
+        border-radius: 11px;
+
+        background: #f1f5fa;
+
+        color: #3b6ea8;
+
+        font-size: 17px;
+
+        border: 1px solid #e5ebf2;
+
+        transition:
+            background .18s ease,
+            color .18s ease;
+    }
+
+    .portal-option:hover .portal-icon {
+        background: #eaf2fc;
+        color: #2563eb;
+    }
+
+    .portal-copy {
+        display: flex;
+
+        min-width: 0;
+
+        flex: 1;
+
+        flex-direction: column;
+
+        gap: 5px;
+    }
+
+    .portal-copy strong {
+        color: #1b2d43;
+
+        font-size: 15px;
+
+        font-weight: 700;
+    }
+
+    .portal-copy small {
+        color: #7b899a;
+
+        font-size: 12.5px;
+    }
+
+    .portal-chevron {
+        display: flex;
+        align-items: center;
+
+        color: #a2afbd;
+
+        font-size: 14px;
+
+        transition:
+            color .18s ease,
+            transform .18s ease;
+    }
+
+    .portal-option:hover .portal-chevron {
+        color: #4776bd;
+        transform: translateX(2px);
+    }
+
+    .login-form {
+        display: flex;
+
+        flex-direction: column;
+
+        gap: 9px;
+    }
+
+    .login-label {
+        margin-top: 8px;
+        margin-bottom: 1px;
+        color: #526276;
+        font-size: 12.5px;
+        font-weight: 650;
+        letter-spacing: .1px;
+    }
+
+    .login-input {
+        margin-bottom: 8px;
+    }
+
+    .login-input .mud-input-outlined {
+        border-radius: 10px !important;
+
+        background: #fafbfc;
+    }
+
+    .login-input input {
+        height: 42px !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        color: #26384d !important;
+        font-size: 14px !important;
+        font-weight: 450;
+    }
+
+    .login-input input::placeholder {
+        color: #9aa7b5 !important;
+        opacity: 1;
+    }
+
+    .login-input .mud-input-outlined-border {
+        border-color: #dfe5eb !important;
+        border-width: 1px !important;
+    }
+
+    .login-input:hover .mud-input-outlined-border {
+        border-color: #c8d2dd !important;
+    }
+
+    .login-input.mud-input-focused .mud-input-outlined-border {
+        border-color: #7fa7d8 !important;
+
+        border-width: 1px !important;
+
+        box-shadow:
+            0 0 0 3px rgba(37, 99, 235, .08);
+    }
+
+    .login-input .mud-input-adornment {
+        color: #8796a7 !important;
+
+        margin-right: 4px;
+    }
+
+    .login-input.mud-input-focused .mud-input-adornment {
+        color: #4776bd !important;
+    }
+
+    .login-submit {
+        height: 50px;
+
+        margin-top: 15px;
+
+        border-radius: 10px !important;
+
+        background: #2563eb !important;
+
+        color: #ffffff !important;
+
+        text-transform: none !important;
+
+        font-size: 14px !important;
+
+        font-weight: 650 !important;
+
+        letter-spacing: .1px;
+
+        box-shadow:
+            0 7px 18px rgba(37, 99, 235, .18) !important;
+
+        transition:
+            background .18s ease,
+            box-shadow .18s ease,
+            transform .18s ease;
+    }
+
+    .login-submit:hover {
+        background: #1d4ed8 !important;
+
+        box-shadow:
+            0 9px 22px rgba(37, 99, 235, .22) !important;
+
+        transform: translateY(-1px);
+    }
+
+    .login-error {
+        margin-bottom: 15px;
+
+        border-radius: 10px;
+    }
+
+    .login-back {
+        margin-top: 21px;
+
+        text-align: center;
+    }
+
+    .login-back-button {
+        display: inline-flex;
+
+        align-items: center;
+
+        gap: 7px;
+
+        border: none;
+
+        background: transparent;
+
+        padding: 0;
+
+        color: #718096;
+
+        font-family: inherit;
+
+        font-size: 12px;
+
+        font-weight: 550;
+
+        text-decoration: none;
+
+        cursor: pointer;
+
+        transition: color .18s ease;
+    }
+
+    .login-back-button:hover {
+        color: #2563eb;
+
+        text-decoration: none;
+    }
+
+    .login-card-footer {
+        display: flex;
+
+        align-items: center;
+
+        justify-content: center;
+
+        gap: 9px;
+
+        margin-top: 30px;
+
+        padding-top: 20px;
+
+        border-top:
+            1px solid
+            #edf0f4;
+
+        color: #8795a6;
+
+        font-size: 12px;
+    }
+
+    .login-footer {
+        margin-top: 22px;
+
+        color:
+            rgba(255, 255, 255, .78);
+
+        font-size: 12px;
+
+        text-align: center;
+
+        text-shadow:
+            0 1px 8px
+            rgba(0, 0, 0, .4);
+    }
+    
+    @@media (max-width: 480px) {
+
+        .login-page {
+            padding: 24px 16px;
+        }
+
+        .login-main {
+            max-width: 430px;
+        }
+
+        .login-brand {
+            margin-bottom: 20px;
+        }
+
+        .login-brand img {
+            width: 82px;
+            height: 82px;
+        }
+
+        .login-brand-name {
+            font-size: 22px;
+        }
+
+        .login-brand-caption {
+            font-size: 11px;
+
+            letter-spacing: 1.4px;
+        }
+
+        .login-card {
+            padding: 32px 23px 22px;
+
+            border-radius: 22px;
+        }
+
+        .login-heading h1 {
+            font-size: 26px;
+        }
+
+        .login-heading p {
+            font-size: 14px;
+        }
+
+        .portal-option {
+            min-height: 76px;
+
+            padding: 13px 14px;
+        }
+
+        .portal-icon {
+            flex-basis: 44px;
+
+            width: 44px;
+            height: 44px;
+        }
+
+        .portal-copy strong {
+            font-size: 14px;
+        }
+    }
+
+    @@media (prefers-reduced-motion: reduce) {
+
+        .portal-option {
+            transition: none;
+        }
+
+        .login-background-video {
+            transition: none;
+        }
+    }
+
+</style>
+
+@code {
+
+    [Parameter]
+    public string? Portal { get; set; }
+    private string _user = "";
+    private string _pw = "";
+    private string? _error;
+    private bool _busy;
+
+
+    private string PortalType =>
+        Portal?.Trim().ToLowerInvariant() switch
+        {
+            "superadmin" => "superadmin",
+
+            "scheme-admin" => "scheme-admin",
+
+            "customer" => "customer",
+
+            _ => "choose"
+        };
+    
+    protected override void OnParametersSet()
+    {
+        _error = null;
+        _user = "";
+        _pw = "";
+        _busy = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(
+        bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        try
+        {
+            await JS.InvokeVoidAsync(
+                "initLoginVideo");
+        }
+        catch
+        {
+            // Video failure should not affect login.
+        }
+    }
+    
+    private string PortalTitle =>
+        PortalType switch
+        {
+            "superadmin" =>
+                "Platform administration",
+
+            "scheme-admin" =>
+                "Scheme administrator",
+
+            "customer" =>
+                "Customer portal",
+
+            _ =>
+                "Welcome to Uniflow"
+        };
+
+
+    private string PortalSubtitle =>
+        PortalType switch
+        {
+            "superadmin" =>
+                "Sign in to manage the Uniflow platform.",
+
+            "scheme-admin" =>
+                "Sign in to manage your scheme.",
+
+            "customer" =>
+                "Sign in to access your account and services.",
+
+            _ =>
+                "Choose your portal to continue."
+        };
+    
+    private async Task OnKey(
+        KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await Submit();
+        }
+    }
+    
+    // LOGIN
+    private async Task Submit()
+    {
+        if (_busy)
+            return;
+
+        _error = null;
+
+        if (string.IsNullOrWhiteSpace(_user))
+        {
+            _error =
+                PortalType == "customer"
+                    ? "Please enter your account number."
+                    : "Please enter your username.";
+
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_pw))
+        {
+            _error =
+                "Please enter your password.";
+
+            return;
+        }
+
+
+        _busy = true;
+
+
+        try
+        {
+            var result =
+                PortalType switch
+                {
+                    "superadmin" =>
+                        await Api.SuperAdminLoginAsync(
+                            _user.Trim(),
+                            _pw),
+
+                    "scheme-admin" =>
+                        await Api.AdminLoginAsync(
+                            _user.Trim(),
+                            _pw),
+
+                    "customer" =>
+                        await Api.CustomerLoginAsync(
+                            _user.Trim(),
+                            _pw),
+
+                    _ =>
+                        throw new InvalidOperationException(
+                            "Select a portal before signing in.")
+                };
+
+
+            if (result.Success)
+            {
+                var destination =
+                    PortalType switch
+                    {
+                        "superadmin" =>
+                            "/schemes",
+
+                        "scheme-admin" =>
+                            "/",
+
+                        "customer" =>
+                            "/",
+
+                        _ =>
+                            "/login"
+                    };
+
+
+                Nav.NavigateTo(
+                    destination);
+
+                return;
+            }
+
+
+            _error =
+                result.Message
+                ?? "Unable to sign in. Check your credentials.";
+        }
+        catch
+        {
+            _error =
+                "Unable to connect to the authentication service. Please try again.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+}

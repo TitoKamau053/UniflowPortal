@@ -1,0 +1,13 @@
+@inject ApiClient Api
+<MudAutocomplete T="JsonRow" Label="Customer (name / account / phone)" Value="Value" ValueChanged="ValueChanged"
+                 SearchFunc="Search" ToStringFunc="Label" MinCharacters="2" Variant="Variant.Outlined" ResetValueOnEmptyText="true" />
+@code {
+    [Parameter] public JsonRow? Value { get; set; }
+    [Parameter] public EventCallback<JsonRow?> ValueChanged { get; set; }
+    static string Label(JsonRow? r) => r is null ? "" : $"{r.Str("fullName", "customerName", "name")} ({r.Str("accountNo", "accountNumber")})";
+    async Task<IEnumerable<JsonRow>> Search(string text, CancellationToken ct)
+    {
+        var r = await Api.Get(ApiRoutes.Q(ApiRoutes.Customers, ("search", text), ("page", 1), ("pageSize", 10)));
+        return r.Success ? r.Rows() : new List<JsonRow>();
+    }
+}

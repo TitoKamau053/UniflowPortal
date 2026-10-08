@@ -1,0 +1,61 @@
+@page "/meter-readings"
+@attribute [Authorize(Roles = "admin,superadmin")]
+@inject ApiClient Api
+@inject PortalSession Session
+@inject NavigationManager Nav
+@inject ISnackbar Snack
+
+<PageHeader Title="Meter readings" Subtitle="Record readings in bulk for a billing month">
+    <MudDatePicker @bind-Date="_month"
+                   @bind-Date:after="Load"
+                   OpenTo="OpenTo.Month"
+                   DateFormat="MMMM yyyy"
+                   Label="Month"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense" />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving" OnClick="Save" StartIcon="@Icons.Material.Filled.Save">Save readings</MudButton>
+</PageHeader>
+
+<MudTable T="JsonRow" Items="_rows" Loading="_loading" Hover="true" Elevation="0" Class="uf-card" Breakpoint="Breakpoint.Sm" RowsPerPage="50">
+    <HeaderContent><MudTh>Customer</MudTh><MudTh>Meter</MudTh><MudTh>Previous</MudTh><MudTh>Current reading</MudTh></HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Customer"><div>@context.Str("fullName", "customerName", "name")</div><div class="uf-sub">@context.Str("accountNo", "accountNumber")</div></MudTd>
+        <MudTd DataLabel="Meter"><span class="uf-mono">@context.Str("meterNumber", "meterNo")</span></MudTd>
+        <MudTd DataLabel="Previous">@context.Dec("previousReading", "lastReading").ToString("N2")</MudTd>
+        <MudTd DataLabel="Current">
+            <MudNumericField T="double?" Value="Get(context)" ValueChanged="v => Set(context, v)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" HideSpinButtons="true" />
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent><MudText Class="pa-6" Color="Color.Secondary">No customers due for readings this month.</MudText></NoRecordsContent>
+    <PagerContent><MudTablePager /></PagerContent>
+</MudTable>
+
+@code {
+    DateTime? _month = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+    List<JsonRow> _rows = new(); readonly Dictionary<int, double?> _entries = new(); bool _loading, _saving;
+    double? Get(JsonRow r) => _entries.TryGetValue(r.Int("customerId", "id"), out var v) ? v : null;
+    void Set(JsonRow r, double? v) => _entries[r.Int("customerId", "id")] = v;
+    protected override async Task OnInitializedAsync()
+    {
+        if (!SchemeGuard.EnsureSchemeOrRedirect(Session, Nav, Snack)) return;
+        await Load();
+    }
+    async Task Load()
+    {
+        _loading = true; _entries.Clear();
+        var r = await Api.Get(ApiRoutes.Q(ApiRoutes.MeterCustomers, ("month", Fmt.Iso(_month))));
+        if (!r.Success) Snack.Add(r.Message ?? "Failed to load", Severity.Error);
+        _rows = r.Rows(); _loading = false;
+    }
+    async Task Save()
+    {
+        var date = Fmt.Iso(_month is null ? DateTime.Today : new DateTime(_month.Value.Year, _month.Value.Month, DateTime.DaysInMonth(_month.Value.Year, _month.Value.Month)));
+        var batch = _entries.Where(e => e.Value is > 0).Select(e => new { customerId = e.Key, readingDate = date, currentReading = e.Value!.Value }).ToArray();
+        if (batch.Length == 0) { Snack.Add("Enter at least one reading", Severity.Info); return; }
+        _saving = true;
+        var r = await Api.Post(ApiRoutes.MeterBatch, batch);
+        _saving = false;
+        Snack.Add(r.Success ? $"{batch.Length} reading(s) saved" : r.Message ?? "Failed", r.Success ? Severity.Success : Severity.Error);
+        if (r.Success) await Load();
+    }
+}

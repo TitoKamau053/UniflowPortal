@@ -1,0 +1,59 @@
+@page "/billing"
+@attribute [Authorize(Roles = "admin,superadmin")]
+@inject ApiClient Api
+@inject PortalSession Session
+@inject NavigationManager Nav
+@inject IDialogService Dialogs
+@inject ISnackbar Snack
+
+<PageHeader Title="Billing" Subtitle="Generate and track customer bills">
+    <MudButton Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.Schedule" OnClick="MarkOverdue">Mark overdue</MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PlaylistAdd" OnClick="Generate">Generate monthly bills</MudButton>
+</PageHeader>
+
+<StatStrip Row="_stats" Max="4" />
+
+<MudSelect T="string" @bind-Value="_status" Label="Status" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" Style="max-width:260px" SelectedValuesChanged="_ => _grid!.Reload()">
+    <MudSelectItem T="string" Value="@("")">All statuses</MudSelectItem>
+    @foreach (var s in _statuses) { <MudSelectItem T="string" Value="@s">@s</MudSelectItem> }
+</MudSelect>
+
+<DataGrid @ref="_grid" Url="@ApiRoutes.Bills" Cols="_cols" Query="Q">
+    <Actions Context="r">
+        <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+            @foreach (var s in _statuses) { var st = s; <MudMenuItem OnClick="() => SetStatus(r, st)">Mark @st</MudMenuItem> }
+            <MudDivider />
+            <MudMenuItem OnClick="() => Remove(r)"><span class="uf-debt">Delete bill</span></MudMenuItem>
+        </MudMenu>
+    </Actions>
+</DataGrid>
+
+@code {
+    DataGrid? _grid; JsonRow? _stats; string _status = "";
+    // Verify these against your bill status values in the database
+    readonly string[] _statuses = { "Pending", "Partial", "Paid", "Overdue", "Cancelled" };
+    readonly List<Col> _cols = new()
+    {
+        new("Bill", new[] { "billNumber", "billNo", "billId", "id" }, ColKind.Mono),
+        new("Customer", new[] { "fullName", "customerName", "name" }, ColKind.Text, new[] { "accountNo", "accountNumber" }),
+        new("Period", new[] { "periodStart" }, ColKind.Date, new[] { "periodEnd" }, ColKind.Date, "to "),
+        new("Amount", new[] { "totalAmount", "amount", "billAmount" }, ColKind.Money),
+        new("Balance", new[] { "balance", "amountDue", "outstanding" }, ColKind.Money),
+        new("Due", new[] { "dueDate" }, ColKind.Date),
+        new("Status", new[] { "status" }, ColKind.Status),
+    };
+    (string, object?)[] Q() => new (string, object?)[] { ("status", _status) };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!SchemeGuard.EnsureSchemeOrRedirect(Session, Nav, Snack)) return;
+         var r = await Api.Get(ApiRoutes.BillsStats); _stats = r.Item(); }
+    async Task Generate() { var d = await Dialogs.ShowAsync<GenerateBillsDialog>("Generate monthly bills", Fmt.Dlg); if (!(await d.Result)!.Canceled) await _grid!.Reload(); }
+    async Task MarkOverdue() { var r = await Api.Post(ApiRoutes.BillsMarkOverdue); Snack.Add(r.Message ?? (r.Success ? "Overdue bills updated" : "Failed"), r.Success ? Severity.Success : Severity.Error); await _grid!.Reload(); }
+    async Task SetStatus(JsonRow r, string s) { var x = await Api.Put(ApiRoutes.BillStatus(r.Int("billId", "id")), new { status = s }); Snack.Add(x.Success ? "Status updated" : x.Message ?? "Failed", x.Success ? Severity.Success : Severity.Error); await _grid!.Reload(); }
+    async Task Remove(JsonRow r)
+    {
+        if (await Dialogs.ShowMessageBox("Delete bill", "This cannot be undone.", yesText: "Delete", cancelText: "Cancel") != true) return;
+        var x = await Api.Delete(ApiRoutes.Bill(r.Int("billId", "id"))); Snack.Add(x.Success ? "Bill deleted" : x.Message ?? "Failed", x.Success ? Severity.Success : Severity.Error); await _grid!.Reload();
+    }
+}

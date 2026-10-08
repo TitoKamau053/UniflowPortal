@@ -1,0 +1,110 @@
+@page "/notifications"
+@attribute [Authorize(Roles = "admin,superadmin")]
+@inject ApiClient Api
+@inject PortalSession Session
+@inject NavigationManager Nav
+@inject IDialogService Dialogs
+@inject ISnackbar Snack
+
+<PageHeader Title="Notifications" Subtitle="Manual SMS notifications to customers" />
+
+<StatStrip Row="_sms" Max="4" />
+
+<MudTabs Elevation="0" Rounded="true" PanelClass="pt-3">
+    <MudTabPanel Text="Send notifications">
+        <MudPaper Elevation="0" Class="uf-card pa-4 mb-4" Style="background:#f0fdf4">
+            <MudText Typo="Typo.h6">Bill reminders</MudText>
+            <MudText Typo="Typo.body2" Class="mb-3">Send a bill reminder to every customer with an outstanding bill.</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Send" OnClick="BillReminders">Send bill reminders</MudButton>
+        </MudPaper>
+
+        <MudGrid Spacing="3">
+            <MudItem xs="12" md="6">
+                <MudPaper Elevation="0" Class="uf-card pa-4">
+                    <MudText Typo="Typo.h6" Class="mb-2">Select recipients (@_selected.Count)</MudText>
+                    <MudTextField @bind-Value="_search" Immediate="true" DebounceInterval="400" OnDebounceIntervalElapsed="Load" Placeholder="Search name, account, phone..." Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2" />
+                    <MudTable T="JsonRow" Items="_customers" MultiSelection="true" @bind-SelectedItems="_selected" Dense="true" Elevation="0" Height="380px" FixedHeader="true" Loading="_loading">
+                        <HeaderContent><MudTh>Customer</MudTh></HeaderContent>
+                        <RowTemplate><MudTd><div>@context.Str("fullName", "customerName", "name")</div><div class="uf-sub">@context.Str("accountNo", "accountNumber") · @context.Str("phone", "phoneNumber")</div></MudTd></RowTemplate>
+                    </MudTable>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudPaper Elevation="0" Class="uf-card pa-4">
+                    <MudText Typo="Typo.h6" Class="mb-2">Message</MudText>
+                    <MudSelect T="string" @bind-Value="_type" Label="Notification type" Variant="Variant.Outlined" Class="mb-3" SelectedValuesChanged="_ => ApplyTemplate()">
+                        <MudSelectItem T="string" Value="@("Bill")">Bill notification</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Contribution")">Contribution notification</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Custom")">Custom message</MudSelectItem>
+                    </MudSelect>
+                    <MudTextField @bind-Value="_message" Lines="6" Label="SMS text" Variant="Variant.Outlined" HelperText="{customer_name} and {account_number} are filled in per customer" Counter="160" />
+                    <MudButton Class="mt-3" FullWidth="true" Variant="Variant.Filled" Color="Color.Primary" Disabled="_sending || _selected.Count == 0 || string.IsNullOrWhiteSpace(_message)" StartIcon="@Icons.Material.Filled.Send" OnClick="Send">
+                        @(_sending ? "Sending..." : $"Send to {_selected.Count} customer(s)")
+                    </MudButton>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    </MudTabPanel>
+    <MudTabPanel Text="Send history">
+        <DataGrid Url="@ApiRoutes.NotifHistory" Cols="_hcols" />
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    JsonRow? _sms; List<JsonRow> _customers = new(); HashSet<JsonRow> _selected = new();
+    string _search = "", _type = "Bill", _message = ""; bool _loading, _sending;
+    readonly List<Col> _hcols = new()
+    {
+        new("Customer", new[] { "fullName", "customerName", "name" }, ColKind.Text, new[] { "phone", "phoneNumber" }),
+        new("Type", new[] { "notificationType", "type" }),
+        new("Message", new[] { "message" }),
+        new("Status", new[] { "status" }, ColKind.Status),
+        new("Sent", new[] { "sentAt", "createdAt" }, ColKind.DateTime),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!SchemeGuard.EnsureSchemeOrRedirect(Session, Nav, Snack)) return;
+         ApplyTemplate(); var s = await Api.Get(ApiRoutes.SmsStatus); _sms = s.Item(); await Load(); }
+
+    async Task Load()
+    {
+        _loading = true;
+        var r = await Api.Get(ApiRoutes.Q(ApiRoutes.NotifCustomers, ("search", _search), ("page", 1), ("pageSize", 100)));
+        _customers = r.Rows(); _loading = false;
+    }
+
+    void ApplyTemplate() => _message = _type switch
+    {
+        "Bill" => "Dear {customer_name}, your outstanding water bill for account {account_number} is due. Please pay at your earliest convenience. Thank you.",
+        "Contribution" => "Dear {customer_name}, a contribution is pending on account {account_number}. Please settle at your earliest convenience. Thank you.",
+        _ => ""
+    };
+
+    async Task BillReminders()
+    {
+        if (await Dialogs.ShowMessageBox("Send bill reminders", "SMS will be sent to all customers with outstanding bills. Continue?", yesText: "Send", cancelText: "Cancel") != true) return;
+        var r = await Api.Post(ApiRoutes.BillReminders);
+        Snack.Add(r.Message ?? (r.Success ? "Reminders queued" : "Failed"), r.Success ? Severity.Success : Severity.Error);
+    }
+
+    async Task Send()
+    {
+        _sending = true; int ok = 0, fail = 0;
+        if (!_message.Contains('{'))
+        {
+            var r = await Api.Post(ApiRoutes.SmsBulk, new { customerIds = _selected.Select(c => c.Int("customerId", "id")).ToArray(), message = _message });
+            if (r.Success) ok = _selected.Count; else { fail = _selected.Count; Snack.Add(r.Message ?? "Failed", Severity.Error); }
+        }
+        else
+            foreach (var c in _selected)
+            {
+                var text = _message.Replace("{customer_name}", c.Str("fullName", "customerName", "name")).Replace("{account_number}", c.Str("accountNo", "accountNumber"));
+                var r = await Api.Post(ApiRoutes.SmsSend, new { customerId = c.Int("customerId", "id"), message = text, notificationType = _type });
+                if (r.Success) ok++; else fail++;
+            }
+        _sending = false;
+        Snack.Add($"Sent: {ok}, failed: {fail}", fail == 0 ? Severity.Success : Severity.Warning);
+        if (fail == 0) _selected = new();
+    }
+}

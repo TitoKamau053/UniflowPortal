@@ -1,0 +1,63 @@
+@inject ApiClient Api
+@inject ISnackbar Snack
+
+<MudDialog>
+    <TitleContent>Provision scheme</TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_schemeName" Label="Scheme name" Variant="Variant.Outlined" Class="mb-3" Required="true" />
+        <MudTextField @bind-Value="_adminUsername" Label="Admin username" Variant="Variant.Outlined" Class="mb-3" Required="true" />
+        <MudTextField @bind-Value="_adminPassword" Label="Admin password" InputType="InputType.Password" Variant="Variant.Outlined" Class="mb-3" Required="true" />
+        <MudTextField @bind-Value="_adminEmail" Label="Admin email" Variant="Variant.Outlined" Class="mb-3" />
+        <MudTextField @bind-Value="_adminFullName" Label="Admin full name" Variant="Variant.Outlined" Class="mb-3" />
+        <MudNumericField @bind-Value="_flatRate" Label="Initial flat rate" Variant="Variant.Outlined" Class="mb-2" Min="0" />
+        @if (!string.IsNullOrEmpty(_err))
+        {
+            <MudAlert Severity="Severity.Error" Dense="true">@_err</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_busy">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save" Disabled="_busy">Provision</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = default!;
+
+    string _schemeName = "", _adminUsername = "", _adminPassword = "", _adminEmail = "", _adminFullName = "", _err = "";
+    decimal _flatRate;
+    bool _busy;
+
+    void Cancel() => MudDialog.Cancel();
+
+    async Task Save()
+    {
+        _err = "";
+        if (string.IsNullOrWhiteSpace(_schemeName) || string.IsNullOrWhiteSpace(_adminUsername) || string.IsNullOrWhiteSpace(_adminPassword))
+        {
+            _err = "Scheme name, admin username, and password are required.";
+            return;
+        }
+        _busy = true;
+        try
+        {
+            var r = await Api.Post(ApiRoutes.Schemes, new
+            {
+                schemeName = _schemeName.Trim(),
+                adminUsername = _adminUsername.Trim(),
+                adminPassword = _adminPassword,
+                adminEmail = _adminEmail.Trim(),
+                adminFullName = _adminFullName.Trim(),
+                initialFlatRate = _flatRate
+            });
+            if (!r.Success)
+            {
+                _err = r.Message ?? "Provision failed";
+                return;
+            }
+            Snack.Add("Scheme provisioned", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        finally { _busy = false; }
+    }
+}

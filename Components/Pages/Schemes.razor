@@ -1,0 +1,174 @@
+@page "/schemes"
+@using System.Security.Claims
+@using Microsoft.JSInterop
+@attribute [Authorize(Roles = "superadmin")]
+@inject ApiClient Api
+@inject IDialogService Dialogs
+@inject ISnackbar Snack
+@inject PortalSession Session
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@using NavItems = NavItems
+
+<PageHeader Title="Schemes" Subtitle="Platform management — provision schemes, manage admins, enter a scheme">
+    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Refresh" OnClick="Reload">Refresh</MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="Provision">Provision scheme</MudButton>
+</PageHeader>
+
+@if (Session.HasActiveScheme)
+{
+    <MudAlert Severity="Severity.Info" Class="mb-4" Dense="true">
+        Active scheme: <strong>@(Session.ActiveSchemeName ?? $"#{Session.ActiveSchemeId}")</strong>
+        — scheme ops menu is available in the header.
+        <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Primary" OnClick="ClearScheme">Clear selection</MudButton>
+    </MudAlert>
+}
+
+<div class="dash-metric-row mb-4">
+    <div class="dash-metric">
+        <label>Total schemes</label>
+        <strong>@_rows.Count</strong>
+        <div class="sub">Platform registry</div>
+    </div>
+    <div class="dash-metric green">
+        <label>Active</label>
+        <strong>@_rows.Count(IsActive)</strong>
+        <div class="sub">Can enter</div>
+    </div>
+    <div class="dash-metric alt">
+        <label>Selected</label>
+        <strong>@(Session.HasActiveScheme ? "Yes" : "None")</strong>
+        <div class="sub">@(Session.ActiveSchemeName ?? "Pick a scheme to operate")</div>
+    </div>
+</div>
+
+<MudPaper Elevation="0" Class="uf-card pa-0" Style="overflow:hidden">
+    <MudTable T="JsonRow" Items="_rows" Dense="true" Hover="true" Elevation="0" Loading="_loading">
+        <HeaderContent>
+            <MudTh>Scheme</MudTh>
+            <MudTh>Admin</MudTh>
+            <MudTh>Customers</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Created</MudTh>
+            <MudTh Style="text-align:right">Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Scheme">
+                <div style="font-weight:600">@context.Str("schemeName", "name")</div>
+                <div class="uf-sub">ID @context.Int("schemeID", "schemeId", "id")</div>
+            </MudTd>
+            <MudTd DataLabel="Admin">
+                <div>@context.Str("adminFullName", "adminUsername")</div>
+                <div class="uf-sub">@context.Str("adminEmail")</div>
+            </MudTd>
+            <MudTd DataLabel="Customers">
+                @context.Int("customerCount", "customers", "activeCustomers", "count").ToString("N0")
+            </MudTd>
+            <MudTd DataLabel="Status">
+                <StatusChip Text="@(IsActive(context) ? "Active" : context.Str("status", "isActive"))" />
+            </MudTd>
+            <MudTd DataLabel="Created">@context.Str("createdAt", "createdDate")</MudTd>
+            <MudTd DataLabel="Actions" Style="text-align:right;white-space:nowrap">
+                <MudTooltip Text="Enter scheme (sets active context)">
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                               OnClick="() => EnterScheme(context)">Enter</MudButton>
+                </MudTooltip>
+                <MudTooltip Text="Toggle active / inactive">
+                    <MudIconButton Icon="@Icons.Material.Outlined.ToggleOn" Size="Size.Small" Color="Color.Default"
+                                   OnClick="() => ToggleScheme(context)" />
+                </MudTooltip>
+                <MudTooltip Text="Manage scheme admins">
+                    <MudIconButton Icon="@Icons.Material.Outlined.ManageAccounts" Size="Size.Small" Color="Color.Info"
+                                   OnClick="() => ManageAdmins(context)" />
+                </MudTooltip>
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Class="pa-6" Color="Color.Secondary">No schemes returned. Provision the first scheme to get started.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    List<JsonRow> _rows = new();
+    bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    async Task Reload()
+    {
+        _loading = true;
+        try
+        {
+            var r = await Api.Get(ApiRoutes.Schemes);
+            if (!r.Success)
+            {
+                Snack.Add(r.Message ?? "Could not load schemes", Severity.Error);
+                _rows = new();
+                return;
+            }
+            _rows = r.Rows();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    static bool IsActive(JsonRow r)
+    {
+        var s = r.Str("status", "isActive").ToLowerInvariant();
+        return s is "active" or "true" or "1" or "enabled";
+    }
+
+    async Task EnterScheme(JsonRow row)
+    {
+        var id = row.Int("schemeID", "schemeId", "id");
+        if (id <= 0)
+        {
+            Snack.Add("Scheme id missing on row", Severity.Warning);
+            return;
+        }
+        var name = row.Str("schemeName", "name");
+        await Session.SetActiveSchemeAsync(JS, id, name);
+        Snack.Add($"Entered scheme: {name}", Severity.Success);
+        // Navigation.NavigateTo("/");
+    }
+
+    async Task ClearScheme()
+    {
+        await Session.SetActiveSchemeAsync(JS, null, null);
+        Snack.Add("Scheme selection cleared", Severity.Info);
+        Navigation.NavigateTo("/schemes");
+    }
+
+    async Task ToggleScheme(JsonRow row)
+    {
+        var id = row.Int("schemeID", "schemeId", "id");
+        if (id <= 0) return;
+        var r = await Api.Post(ApiRoutes.SchemeToggle(id));
+        Snack.Add(r.Success ? "Status updated" : r.Message ?? "Failed", r.Success ? Severity.Success : Severity.Error);
+        if (r.Success) await Reload();
+    }
+
+    async Task Provision()
+    {
+        var d = await Dialogs.ShowAsync<ProvisionSchemeDialog>("Provision scheme", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await d.Result;
+        if (result is { Canceled: false })
+            await Reload();
+    }
+
+    async Task ManageAdmins(JsonRow row)
+    {
+        var id = row.Int("schemeID", "schemeId", "id");
+        var name = row.Str("schemeName", "name");
+        if (id <= 0) return;
+        var parameters = new DialogParameters
+        {
+            ["SchemeId"] = id,
+            ["SchemeName"] = name
+        };
+        await Dialogs.ShowAsync<SchemeAdminsDialog>($"Admins — {name}", parameters, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+    }
+}

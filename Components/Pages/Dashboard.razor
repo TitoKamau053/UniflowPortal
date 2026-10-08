@@ -1,0 +1,925 @@
+@page "/"
+@attribute [Authorize]
+
+@using System.Security.Claims
+
+@inject PortalAuthStateProvider Auth
+@inject ApiClient Api
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (!string.IsNullOrWhiteSpace(_error))
+{
+    <MudAlert Severity="Severity.Warning" Class="mb-4">@_error</MudAlert>
+}
+
+@* ════════════════════ SUPERADMIN ════════════════════ *@
+@if (_role == "superadmin")
+{
+    <div class="dash-hero">
+        <div class="dash-hero-bg"></div>
+        <div class="dash-hero-inner">
+            <div>
+                <p class="dash-hero-title">Platform overview</p>
+                <div class="dash-hero-meta">
+                    <span class="dash-badge success">Live</span>
+                    <span class="dash-badge">Uniflow Portal</span>
+                </div>
+                <div class="dash-hero-stats">
+                    <div class="dash-hero-stat">
+                        <label>Schemes</label>
+                        <strong>@_platformSchemes.Count.ToString("N0")</strong>
+                    </div>
+                    <div class="dash-hero-stat">
+                        <label>Active</label>
+                        <strong>@_platformActiveSchemes.ToString("N0")</strong>
+                    </div>
+                    <div class="dash-hero-stat">
+                        <label>Customers</label>
+                        <strong>@_platformCustomers.ToString("N0")</strong>
+                    </div>
+                </div>
+            </div>
+            <div class="dash-hero-card">
+                <h4>Signed-in account</h4>
+                <div class="row"><span>User</span><strong>@_userName</strong></div>
+                <div class="row"><span>Role</span><strong>Platform Admin</strong></div>
+                <div class="row"><span>Portal</span><strong>UniflowDB</strong></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="dash-tabs">
+        <button type="button" class="dash-tab @(_tab == 0 ? "active" : "")" @onclick="@(() => SetTab(0))">Overview</button>
+        <button type="button" class="dash-tab @(_tab == 1 ? "active" : "")" @onclick="@(() => SetTab(1))">Schemes</button>
+        <button type="button" class="dash-tab @(_tab == 2 ? "active" : "")" @onclick="@(() => SetTab(2))">Activity</button>
+        <button type="button" class="dash-tab @(_tab == 3 ? "active" : "")" @onclick="@(() => SetTab(3))">Reports</button>
+    </div>
+
+    <div class="dash-kpi-row">
+        <div class="dash-kpi"><label>Schemes loaded</label><strong>@_platformSchemes.Count.ToString("N0")</strong></div>
+        <div class="dash-kpi"><label>Active schemes</label><strong>@_platformActiveSchemes.ToString("N0")</strong><div class="hint">Operational</div></div>
+        <div class="dash-kpi"><label>Total customers</label><strong>@_platformCustomers.ToString("N0")</strong></div>
+        <div class="dash-kpi"><label>With customers</label><strong>@_platformSchemes.Count(x => x.Int("customerCount", "customers", "activeCustomers", "count") > 0).ToString("N0")</strong></div>
+    </div>
+
+    <div class="dash-workspace">
+        <div class="dash-panel">
+            <div class="dash-panel-head">
+                <h3>Schemes</h3>
+            </div>
+            <div class="dash-toolbar" style="padding:0.65rem 1rem;border-bottom:1px solid #f5f5f5;">
+                <div class="dash-search">
+                    <MudIcon Icon="@Icons.Material.Outlined.Search" Size="Size.Small" />
+                    <input type="text" placeholder="Search schemes…" readonly />
+                </div>
+            </div>
+            <div class="dash-chips">
+                <span class="dash-chip ok">Active <strong>@_platformActiveSchemes</strong></span>
+                <span class="dash-chip muted">Total <strong>@_platformSchemes.Count</strong></span>
+            </div>
+            <div class="dash-panel-body">
+                <div class="dash-list">
+                    @foreach (var scheme in _platformSchemes.Take(8))
+                    {
+                        var name = scheme.Str("schemeName", "name");
+                        var status = scheme.Str("status");
+                        var cust = scheme.Int("customerCount", "customers", "activeCustomers", "count");
+                        <div class="dash-list-item">
+                            <p class="dash-list-title">@(string.IsNullOrEmpty(name) ? "Unnamed scheme" : name)</p>
+                            <div class="dash-list-meta">
+                                <span class="dash-list-status @(status.Equals("active", StringComparison.OrdinalIgnoreCase) ? "active" : "pending")">
+                                    @(string.IsNullOrEmpty(status) ? "—" : status)
+                                </span>
+                                <span class="dash-list-date">@cust customers</span>
+                            </div>
+                            <div class="dash-list-meta" style="margin-top:0.4rem;">
+                                <span class="uf-sub">@scheme.Str("adminUsername", "adminEmail")</span>
+                                <div class="dash-avatars">
+                                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=@Uri.EscapeDataString(name)" alt="" />
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    @if (!_platformSchemes.Any())
+                    {
+                        <MudText Color="Color.Secondary" Typo="Typo.caption">No schemes returned.</MudText>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="dash-panel">
+            <div class="dash-panel-head"><h3>Scheme analytics</h3></div>
+            <div class="dash-panel-body">
+                <p class="dash-detail-title">Platform scheme registry</p>
+                <p class="dash-detail-sub">Schemes currently returned by the platform endpoint</p>
+                <MudTable T="JsonRow" Items="_platformSchemes.Take(10)" Dense="true" Hover="true" Elevation="0" Context="scheme">
+                    <HeaderContent>
+                        <MudTh>Scheme</MudTh>
+                        <MudTh>Customers</MudTh>
+                        <MudTh>Status</MudTh>
+                        <MudTh>Created</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Scheme">
+                            <div>@scheme.Str("schemeName", "name")</div>
+                            <div class="uf-sub">@scheme.Str("adminUsername", "adminEmail")</div>
+                        </MudTd>
+                        <MudTd>@scheme.Int("customerCount", "customers", "activeCustomers", "count").ToString("N0")</MudTd>
+                        <MudTd><StatusChip Text="@scheme.Str("status")" /></MudTd>
+                        <MudTd>@scheme.Str("createdAt", "createdDate")</MudTd>
+                    </RowTemplate>
+                    <NoRecordsContent>
+                        <MudText Class="pa-4" Color="Color.Secondary">No schemes were returned.</MudText>
+                    </NoRecordsContent>
+                </MudTable>
+            </div>
+        </div>
+    </div>
+}
+
+@* ════════════════════ SCHEME ADMIN ════════════════════ *@
+else if (_role == "admin")
+{
+    var revVal = _kpis.FirstOrDefault().value ?? Fmt.Kes(0);
+    var outVal = _kpis.ElementAtOrDefault(1).value ?? Fmt.Kes(0);
+    var pendVal = _kpis.ElementAtOrDefault(2).value ?? Fmt.Kes(0);
+    var custVal = _kpis.ElementAtOrDefault(3).value ?? "0";
+
+    <div class="dash-hero dash-hero-water">
+        <div class="dash-hero-bg dash-hero-bg-water"></div>
+        <div class="dash-hero-inner">
+            <div>
+                <p class="dash-hero-title">Scheme operations dashboard</p>
+                <div class="dash-hero-meta">
+                    <span class="dash-badge success">Active</span>
+                    <span class="dash-badge">Water utility · @_months mo</span>
+                </div>
+                <div class="dash-hero-stats">
+                    <div class="dash-hero-stat"><label>Revenue</label><strong>@revVal</strong></div>
+                    <div class="dash-hero-stat"><label>Outstanding</label><strong>@outVal</strong></div>
+                    <div class="dash-hero-stat"><label>Customers</label><strong>@custVal</strong></div>
+                </div>
+            </div>
+            <div class="dash-hero-card">
+                <h4>This period</h4>
+                <div class="row"><span>Total revenue</span><strong>@revVal</strong></div>
+                <div class="row"><span>Outstanding</span><strong>@outVal</strong></div>
+                <div class="row"><span>Pending</span><strong>@pendVal</strong></div>
+                <div class="row"><span>Active customers</span><strong>@custVal</strong></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="dash-tabs">
+        <button type="button" class="dash-tab @(_tab == 0 ? "active" : "")" @onclick="@(() => SetTab(0))">Overview</button>
+        <button type="button" class="dash-tab @(_tab == 1 ? "active" : "")" @onclick="@(() => SetTab(1))">Collections</button>
+        <button type="button" class="dash-tab @(_tab == 2 ? "active" : "")" @onclick="@(() => SetTab(2))">Customers</button>
+        <button type="button" class="dash-tab @(_tab == 3 ? "active" : "")" @onclick="@(() => SetTab(3))">Zones</button>
+        <button type="button" class="dash-tab @(_tab == 4 ? "active" : "")" @onclick="@(() => SetTab(4))">Reports</button>
+    </div>
+
+    <div class="dash-period-bar">
+        <span class="dash-period-label">Timeline</span>
+        <div class="dash-period-btns">
+            @foreach (var m in new[] { 1, 3, 6, 12 })
+            {
+                var mm = m;
+                <button type="button"
+                        class="dash-period-btn @(_months == mm ? "active" : "")"
+                        @onclick="@(() => SetMonths(mm))">
+                    @(mm == 12 ? "1Y" : $"{mm}M")
+                </button>
+            }
+        </div>
+    </div>
+
+    <div class="dash-metric-row">
+        <div class="dash-metric">
+            <label>Total revenue</label>
+            <strong>@revVal</strong>
+            <div class="sub">Selected period · @_months mo</div>
+        </div>
+        <div class="dash-metric warm">
+            <label>Outstanding bills</label>
+            <strong>@outVal</strong>
+            <div class="sub">Requires follow-up</div>
+        </div>
+        <div class="dash-metric alt">
+            <label>Pending contributions</label>
+            <strong>@pendVal</strong>
+            <div class="sub">In pipeline</div>
+        </div>
+        <div class="dash-metric green">
+            <label>Active customers</label>
+            <strong>@custVal</strong>
+            <div class="sub">@_zones.Count zones</div>
+        </div>
+    </div>
+
+    @* ── TAB 0: OVERVIEW ── *@
+    @if (_tab == 0)
+    {
+        <div class="dash-chart-grid">
+            <div class="dash-chart-card">
+                <h4>Revenue collected by period</h4>
+                <div class="sub">Bar chart · actual collections</div>
+                @if (_labels.Length > 0)
+                {
+                    <MudChart ChartType="ChartType.Bar"
+                              ChartSeries="_seriesCollected"
+                              XAxisLabels="_labels"
+                              Width="100%"
+                              Height="260px" />
+                }
+                else
+                {
+                    <MudText Color="Color.Secondary" Typo="Typo.caption">No collection data for this timeline.</MudText>
+                }
+            </div>
+            <div class="dash-chart-card">
+                <h4>Expected collections (progressive)</h4>
+                <div class="sub">Line chart · target trajectory</div>
+                @if (_labels.Length > 0)
+                {
+                    <MudChart ChartType="ChartType.Line"
+                              ChartSeries="_seriesExpected"
+                              XAxisLabels="_labels"
+                              Width="100%"
+                              Height="260px" />
+                }
+                else
+                {
+                    <MudText Color="Color.Secondary" Typo="Typo.caption">No expected series for this timeline.</MudText>
+                }
+            </div>
+        </div>
+
+        <div class="dash-workspace">
+            <div class="dash-panel">
+                <div class="dash-panel-head"><h3>Priority follow-ups</h3></div>
+                <div class="dash-chips">
+                    <span class="dash-chip info">Outstanding <strong>@_outstanding.Count</strong></span>
+                    <span class="dash-chip ok">Zones <strong>@_zones.Count</strong></span>
+                </div>
+                <div class="dash-panel-body">
+                    <div class="dash-list">
+                        @foreach (var r in _outstanding)
+                        {
+                            var rName = r.Str("fullName", "customerName", "name");
+                            var bal = Fmt.Kes(r.Dec("outstandingBalance", "balance", "totalOutstanding", "amountDue"));
+                            <div class="dash-list-item">
+                                <p class="dash-list-title">@(string.IsNullOrEmpty(rName) ? "Customer" : rName)</p>
+                                <div class="dash-list-meta">
+                                    <span class="dash-list-status overdue">Outstanding</span>
+                                    <span class="dash-list-date uf-debt">@bal</span>
+                                </div>
+                                <div class="dash-list-meta" style="margin-top:0.4rem;">
+                                    <span class="uf-sub">@r.Str("accountNo", "accountNumber") · @r.Str("zone", "zoneName")</span>
+                                    <div class="dash-avatars">
+                                        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=@Uri.EscapeDataString(rName)" alt="" />
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        @if (!_outstanding.Any())
+                        {
+                            <MudText Color="Color.Secondary" Typo="Typo.caption">No outstanding balances.</MudText>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="dash-panel">
+                <div class="dash-panel-head"><h3>Period snapshot</h3></div>
+                <div class="dash-panel-body">
+                    <div class="dash-fields">
+                        <div class="dash-field"><label>Period</label><strong>@_months months</strong></div>
+                        <div class="dash-field"><label>Collected</label><strong>@revVal</strong></div>
+                        <div class="dash-field"><label>Outstanding</label><strong>@outVal</strong></div>
+                        <div class="dash-field"><label>Customers</label><strong>@custVal</strong></div>
+                    </div>
+                    <p class="dash-section-label">Zones at a glance</p>
+                    <div class="dash-list">
+                        @foreach (var z in _zones.Take(4))
+                        {
+                            var zName = z.Str("zone", "zoneName", "name");
+                            <div class="dash-list-item">
+                                <p class="dash-list-title">@(string.IsNullOrEmpty(zName) ? "Zone" : zName)</p>
+                                <div class="dash-list-meta">
+                                    <span class="dash-list-status active">@z.Int("activeCustomers", "customerCount", "customers", "count") active</span>
+                                    <span class="dash-list-date">@Fmt.Kes(z.Dec("totalRevenue", "revenue", "totalPaid", "totalBilled", "totalOutstanding"))</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* ── TAB 1: COLLECTIONS ── *@
+    else if (_tab == 1)
+    {
+        <div class="dash-workspace">
+            <div class="dash-panel">
+                <div class="dash-panel-head"><h3>Zonal collections</h3></div>
+                <div class="dash-panel-body">
+                    <p class="dash-detail-title">Money collected by zone</p>
+                    <p class="dash-detail-sub">Share of total collections across zones</p>
+                    @if (_zonePieLabels.Length > 0)
+                    {
+                        <MudChart ChartType="ChartType.Pie"
+                                  InputData="_zonePieData"
+                                  InputLabels="_zonePieLabels"
+                                  Width="100%"
+                                  Height="280px" />
+                    }
+                    else
+                    {
+                        <MudText Color="Color.Secondary" Typo="Typo.caption">No zone collection data.</MudText>
+                    }
+                </div>
+            </div>
+            <div class="dash-panel">
+                <div class="dash-panel-head"><h3>Collection details</h3></div>
+                <div class="dash-chips">
+                    <span class="dash-chip ok">Zones <strong>@_zones.Count</strong></span>
+                    <span class="dash-chip info">Revenue <strong>@revVal</strong></span>
+                    <span class="dash-chip warn">Pending <strong>@pendVal</strong></span>
+                </div>
+                <div class="dash-panel-body">
+                    <div class="dash-list">
+                        @foreach (var z in _zones)
+                        {
+                            var zName = z.Str("zone", "zoneName", "name");
+                            var rev = z.Dec("totalRevenue", "revenue", "totalPaid", "totalBilled", "totalOutstanding");
+                            var active = z.Int("activeCustomers", "customerCount", "customers", "count");
+                            <div class="dash-list-item">
+                                <p class="dash-list-title">@(string.IsNullOrEmpty(zName) ? "Zone" : zName)</p>
+                                <div class="dash-list-meta">
+                                    <span class="dash-list-status active">@active active</span>
+                                    <span class="dash-list-date">@Fmt.Kes(rev)</span>
+                                </div>
+                                <div class="uf-sub" style="margin-top:0.35rem;">
+                                    Share of scheme collections · billed vs paid tracking
+                                </div>
+                            </div>
+                        }
+                        @if (!_zones.Any())
+                        {
+                            <MudText Color="Color.Secondary" Typo="Typo.caption">No zone analytics returned.</MudText>
+                        }
+                    </div>
+                    <p class="dash-section-label">Period summary</p>
+                    <div class="dash-fields">
+                        <div class="dash-field"><label>Total collected</label><strong>@revVal</strong></div>
+                        <div class="dash-field"><label>Outstanding</label><strong>@outVal</strong></div>
+                        <div class="dash-field"><label>Pending contributions</label><strong>@pendVal</strong></div>
+                        <div class="dash-field"><label>Window</label><strong>@_months months</strong></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* ── TAB 2: CUSTOMERS ── *@
+    else if (_tab == 2)
+    {
+        <div class="dash-workspace">
+            <div class="dash-panel">
+                <div class="dash-panel-head"><h3>Customer risk</h3></div>
+                <div class="dash-chips">
+                    <span class="dash-chip danger">Outstanding <strong>@_outstanding.Count</strong></span>
+                    <span class="dash-chip ok">Active <strong>@custVal</strong></span>
+                </div>
+                <div class="dash-panel-body">
+                    <div class="dash-list">
+                        @foreach (var r in _outstanding)
+                        {
+                            var rName = r.Str("fullName", "customerName", "name");
+                            <div class="dash-list-item">
+                                <p class="dash-list-title">@(string.IsNullOrEmpty(rName) ? "Customer" : rName)</p>
+                                <div class="dash-list-meta">
+                                    <span class="dash-list-status overdue">Needs follow-up</span>
+                                    <span class="dash-list-date uf-debt">@Fmt.Kes(r.Dec("outstandingBalance", "balance", "totalOutstanding", "amountDue"))</span>
+                                </div>
+                                <div class="uf-sub" style="margin-top:0.3rem;">
+                                    @r.Str("accountNo", "accountNumber") · @r.Str("zone", "zoneName")
+                                </div>
+                            </div>
+                        }
+                        @if (!_outstanding.Any())
+                        {
+                            <MudText Color="Color.Secondary" Typo="Typo.caption">No high-risk customers.</MudText>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="dash-panel">
+                <div class="dash-panel-head"><h3>Customer analytics</h3></div>
+                <div class="dash-panel-body">
+                    <p class="dash-detail-title">Account health overview</p>
+                    <p class="dash-detail-sub">Balances and engagement for the selected timeline</p>
+                    <div class="dash-kpi-row">
+                        <div class="dash-kpi"><label>Active customers</label><strong>@custVal</strong></div>
+                        <div class="dash-kpi"><label>With arrears</label><strong>@_outstanding.Count</strong></div>
+                        <div class="dash-kpi"><label>Total outstanding</label><strong>@outVal</strong></div>
+                        <div class="dash-kpi"><label>Zones covered</label><strong>@_zones.Count</strong></div>
+                    </div>
+                    <p class="dash-section-label">Highest outstanding</p>
+                    <MudTable T="JsonRow" Items="_outstanding" Dense="true" Hover="true" Elevation="0" Context="r">
+                        <HeaderContent>
+                            <MudTh>Customer</MudTh>
+                            <MudTh>Account</MudTh>
+                            <MudTh>Zone</MudTh>
+                            <MudTh>Balance</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>@r.Str("fullName", "customerName", "name")</MudTd>
+                            <MudTd class="uf-mono">@r.Str("accountNo", "accountNumber")</MudTd>
+                            <MudTd>@r.Str("zone", "zoneName")</MudTd>
+                            <MudTd class="uf-debt">@Fmt.Kes(r.Dec("outstandingBalance", "balance", "totalOutstanding", "amountDue"))</MudTd>
+                        </RowTemplate>
+                        <NoRecordsContent>
+                            <MudText Class="pa-4" Color="Color.Secondary">None.</MudText>
+                        </NoRecordsContent>
+                    </MudTable>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* ── TAB 3: ZONES ── *@
+    else if (_tab == 3)
+    {
+        <div class="dash-workspace">
+            <div class="dash-panel">
+                <div class="dash-panel-head"><h3>Zone distribution</h3></div>
+                <div class="dash-panel-body">
+                    <p class="dash-detail-title">Customers by zone</p>
+                    <p class="dash-detail-sub">Active accounts across service areas</p>
+                    @if (_zoneCustPieLabels.Length > 0)
+                    {
+                        <MudChart ChartType="ChartType.Donut"
+                                  InputData="_zoneCustPieData"
+                                  InputLabels="_zoneCustPieLabels"
+                                  Width="100%"
+                                  Height="280px" />
+                    }
+                    else if (_zonePieLabels.Length > 0)
+                    {
+                        <MudChart ChartType="ChartType.Donut"
+                                  InputData="_zonePieData"
+                                  InputLabels="_zonePieLabels"
+                                  Width="100%"
+                                  Height="280px" />
+                    }
+                    else
+                    {
+                        <MudText Color="Color.Secondary" Typo="Typo.caption">No zone data.</MudText>
+                    }
+                </div>
+            </div>
+            <div class="dash-panel">
+                <div class="dash-panel-head"><h3>Zone performance</h3></div>
+                <div class="dash-panel-body">
+                    <div class="dash-list">
+                        @foreach (var z in _zones)
+                        {
+                            var zName = z.Str("zone", "zoneName", "name");
+                            <div class="dash-list-item">
+                                <p class="dash-list-title">@(string.IsNullOrEmpty(zName) ? "Zone" : zName)</p>
+                                <div class="dash-list-meta">
+                                    <span class="dash-list-status active">@z.Int("activeCustomers", "customerCount", "customers", "count") customers</span>
+                                    <span class="dash-list-date">@Fmt.Kes(z.Dec("totalRevenue", "revenue", "totalPaid", "totalBilled", "totalOutstanding"))</span>
+                                </div>
+                            </div>
+                        }
+                        @if (!_zones.Any())
+                        {
+                            <MudText Color="Color.Secondary" Typo="Typo.caption">No zones returned.</MudText>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* ── TAB 4: REPORTS ── *@
+    else if (_tab == 4)
+    {
+        <div class="dash-panel">
+            <div class="dash-panel-head"><h3>Operational report snapshot</h3></div>
+            <div class="dash-panel-body">
+                <p class="dash-detail-title">Scheme summary · @_months month window</p>
+                <p class="dash-detail-sub">High-level figures for export and review</p>
+                <div class="dash-kpi-row">
+                    <div class="dash-kpi"><label>Total revenue</label><strong>@revVal</strong></div>
+                    <div class="dash-kpi"><label>Outstanding bills</label><strong>@outVal</strong></div>
+                    <div class="dash-kpi"><label>Pending contributions</label><strong>@pendVal</strong></div>
+                    <div class="dash-kpi"><label>Active customers</label><strong>@custVal</strong></div>
+                </div>
+                <div class="dash-fields">
+                    <div class="dash-field"><label>Zones</label><strong>@_zones.Count</strong></div>
+                    <div class="dash-field"><label>Arrears accounts</label><strong>@_outstanding.Count</strong></div>
+                    <div class="dash-field"><label>Report period</label><strong>@_months months</strong></div>
+                    <div class="dash-field"><label>Generated</label><strong>@DateTime.Now.ToString("dd MMM yyyy")</strong></div>
+                </div>
+                @if (_labels.Length > 0)
+                {
+                    <p class="dash-section-label">Revenue series</p>
+                    <MudChart ChartType="ChartType.Line"
+                              ChartSeries="_seriesExpected"
+                              XAxisLabels="_labels"
+                              Width="100%"
+                              Height="240px" />
+                }
+            </div>
+        </div>
+    }
+}
+
+
+else if (_role == "customer")
+{
+    <div class="dash-hero">
+        <div class="dash-hero-bg"></div>
+        <div class="dash-hero-inner">
+            <div>
+                <p class="dash-hero-title">My water account</p>
+                <div class="dash-hero-meta">
+                    <span class="dash-badge success">@_customerStatus</span>
+                    <span class="dash-badge">@_customerZone</span>
+                </div>
+                <div class="dash-hero-stats">
+                    <div class="dash-hero-stat"><label>Balance</label><strong>@Fmt.Kes(_customerBalance)</strong></div>
+                    <div class="dash-hero-stat"><label>Outstanding</label><strong>@Fmt.Kes(_customerOutstanding)</strong></div>
+                    <div class="dash-hero-stat"><label>Paid</label><strong>@Fmt.Kes(_customerPaymentTotal)</strong></div>
+                </div>
+            </div>
+            <div class="dash-hero-card">
+                <h4>Account details</h4>
+                <div class="row"><span>Account</span><strong>@_customerAccountNo</strong></div>
+                <div class="row"><span>Meter</span><strong>@_customerMeterNo</strong></div>
+                <div class="row"><span>Zone</span><strong>@_customerZone</strong></div>
+                <div class="row"><span>Status</span><strong>@_customerStatus</strong></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="dash-tabs">
+        <button type="button" class="dash-tab @(_tab == 0 ? "active" : "")" @onclick="@(() => SetTab(0))">Overview</button>
+        <button type="button" class="dash-tab @(_tab == 1 ? "active" : "")" @onclick="@(() => SetTab(1))">Bills</button>
+        <button type="button" class="dash-tab @(_tab == 2 ? "active" : "")" @onclick="@(() => SetTab(2))">Payments</button>
+        <button type="button" class="dash-tab @(_tab == 3 ? "active" : "")" @onclick="@(() => SetTab(3))">Activity</button>
+    </div>
+
+    <div class="dash-kpi-row">
+        <div class="dash-kpi"><label>Current balance</label><strong>@Fmt.Kes(_customerBalance)</strong></div>
+        <div class="dash-kpi"><label>Outstanding</label><strong>@Fmt.Kes(_customerOutstanding)</strong></div>
+        <div class="dash-kpi"><label>Recent payments</label><strong>@Fmt.Kes(_customerPaymentTotal)</strong></div>
+        <div class="dash-kpi"><label>Account status</label><strong>@_customerStatus</strong></div>
+    </div>
+
+    <div class="dash-workspace">
+        <div class="dash-panel">
+            <div class="dash-panel-head"><h3>Recent bills</h3></div>
+            <div class="dash-chips">
+                <span class="dash-chip muted">Last <strong>@_customerBills.Count</strong></span>
+            </div>
+            <div class="dash-panel-body">
+                <div class="dash-list">
+                    @foreach (var bill in _customerBills.Take(6))
+                    {
+                        <div class="dash-list-item">
+                            <p class="dash-list-title">@bill.Str("periodStart", "period")</p>
+                            <div class="dash-list-meta">
+                                <span class="dash-list-status @(bill.Str("status").ToLowerInvariant().Contains("paid") ? "active" : "pending")">
+                                    @bill.Str("status")
+                                </span>
+                                <span class="dash-list-date">@Fmt.Kes(bill.Dec("totalAmount", "amount", "billAmount"))</span>
+                            </div>
+                            <div class="uf-sub" style="margin-top:0.25rem;">
+                                Balance @Fmt.Kes(bill.Dec("balance", "amountDue", "outstanding"))
+                            </div>
+                        </div>
+                    }
+                    @if (!_customerBills.Any())
+                    {
+                        <MudText Color="Color.Secondary" Typo="Typo.caption">No bills returned.</MudText>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="dash-panel">
+            <div class="dash-panel-head"><h3>Payment activity</h3></div>
+            <div class="dash-panel-body">
+                <p class="dash-detail-title">Recent payments</p>
+                <p class="dash-detail-sub">Payments recorded against your account</p>
+                <MudTable T="JsonRow" Items="_customerPayments.Take(8)" Dense="true" Hover="true" Elevation="0" Context="row">
+                    <HeaderContent>
+                        <MudTh>Date</MudTh>
+                        <MudTh>Reference</MudTh>
+                        <MudTh>Method</MudTh>
+                        <MudTh>Amount</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@row.Str("paymentDate", "createdAt")</MudTd>
+                        <MudTd><span class="uf-mono">@row.Str("transactionRef", "transactionId", "reference")</span></MudTd>
+                        <MudTd>@row.Str("paymentMethod", "method", "channel")</MudTd>
+                        <MudTd>@Fmt.Kes(row.Dec("amountPaid", "amount"))</MudTd>
+                    </RowTemplate>
+                    <NoRecordsContent>
+                        <MudText Class="pa-4" Color="Color.Secondary">No payments returned.</MudText>
+                    </NoRecordsContent>
+                </MudTable>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <PageHeader Title="Dashboard"
+                Subtitle="Your account is authenticated, but no dashboard is configured for its role." />
+}
+
+@code {
+    private bool _loading = true;
+    private string? _error;
+    private string _role = string.Empty;
+    private string _userName = string.Empty;
+    private int _tab = 0;
+
+    // Scheme admin
+    private int _months = 6;
+    private JsonRow? _dash;
+    private List<JsonRow> _zones = new();
+    private List<JsonRow> _outstanding = new();
+    private List<(string icon, string label, string value, string accent)> _kpis = new();
+    private List<ChartSeries> _series = new();
+    private List<ChartSeries> _seriesCollected = new();
+    private List<ChartSeries> _seriesExpected = new();
+    private string[] _labels = Array.Empty<string>();
+    private double[] _zonePieData = Array.Empty<double>();
+    private string[] _zonePieLabels = Array.Empty<string>();
+    private double[] _zoneCustPieData = Array.Empty<double>();
+    private string[] _zoneCustPieLabels = Array.Empty<string>();
+
+    // Platform admin
+    private List<JsonRow> _platformSchemes = new();
+    private int _platformActiveSchemes;
+    private int _platformCustomers;
+
+    // Customer
+    private JsonRow? _customerSummary;
+    private List<JsonRow> _customerBills = new();
+    private List<JsonRow> _customerPayments = new();
+    private decimal _customerBalance;
+    private decimal _customerOutstanding;
+    private decimal _customerPaymentTotal;
+    private string _customerStatus = "Active";
+    private string _customerAccountNo = "";
+    private string _customerMeterNo = "";
+    private string _customerZone = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await Auth.GetAuthenticationStateAsync();
+        var user = state.User;
+
+        _userName = user.Identity?.Name ?? "User";
+        _role = user.IsInRole("superadmin")
+            ? "superadmin"
+            : user.IsInRole("admin")
+                ? "admin"
+                : user.IsInRole("customer")
+                    ? "customer"
+                    : string.Empty;
+
+        try
+        {
+            switch (_role)
+            {
+                case "superadmin":
+                    await LoadPlatformDashboard();
+                    break;
+                case "admin":
+                    await LoadSchemeDashboard();
+                    break;
+                case "customer":
+                    await LoadCustomerDashboard(user);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void SetTab(int tab)
+    {
+        _tab = tab;
+    }
+
+    private async Task SetMonths(int months)
+    {
+        _months = months;
+
+        if (_role != "admin")
+            return;
+
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            await LoadSchemeDashboard();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadPlatformDashboard()
+    {
+        /*This reuses the endpoint already used by Schemes.razor, so no new API route
+        is introduced at this stage. When you add a dedicated platform dashboard
+        endpoint, this method can be switched to it without changing the UI.*/
+        var result = await Api.Get(ApiRoutes.Schemes);
+
+        if (!result.Success)
+        {
+            _error = result.Message ?? "Could not load platform schemes.";
+            return;
+        }
+
+        _platformSchemes = result.Rows();
+        _platformActiveSchemes = _platformSchemes.Count(x =>
+            x.Str("status").Equals("active", StringComparison.OrdinalIgnoreCase));
+
+        _platformCustomers = _platformSchemes.Sum(x =>
+            x.Int("customerCount", "customers", "activeCustomers", "count"));
+    }
+
+    private async Task LoadSchemeDashboard()
+    {
+    var d = Api.Get(ApiRoutes.Dashboard);
+    var rev = Api.Get(ApiRoutes.Q(ApiRoutes.RevenueAnalytics, ("months", _months)));
+    var o = Api.Get(ApiRoutes.Q(ApiRoutes.OutstandingCustomers, ("page", 1), ("pageSize", 5)));
+    var z = Api.Get(ApiRoutes.ZoneAnalytics);
+
+    await Task.WhenAll(d, rev, o, z);
+
+    // Set to null on failure instead of instantiating an empty row
+    _dash = d.Result.Success ? d.Result.Item() : null; 
+    _error = !d.Result.Success ? d.Result.Message : null;
+    _outstanding = o.Result.Rows();
+    _zones = z.Result.Rows();
+
+    _kpis.Clear();
+
+    // 1. Attempt to extract direct keys with safe null-coalescing
+    decimal totalRev = _dash?.Dec("totalRevenue", "totalCollected", "revenue", "TOTAL REVENUE") ?? 0m;
+    decimal totalOut = _dash?.Dec("outstandingBills", "totalOutstanding", "outstandingAmount", "OUTSTANDING BILLS") ?? 0m;
+    decimal pendingCont = _dash?.Dec("pendingContributions", "contributionsPending", "PENDING CONTRIBUTIONS") ?? 0m;
+    int activeCust = _dash?.Int("activeCustomers", "totalActiveCustomers", "ACTIVE CUSTOMERS", "customers") ?? 0;
+
+    // 2. Fallback: If API returns a pivoted array of zones rather than an aggregate object, sum the zones manually
+    if (totalRev == 0 && _zones.Any()) totalRev = _zones.Sum(zone => zone.Dec("totalRevenue", "revenue", "totalPaid", "totalBilled"));
+    if (activeCust == 0 && _zones.Any()) activeCust = _zones.Sum(zone => zone.Int("activeCustomers", "customerCount", "customers", "count"));
+
+    // 3. Force populate the 4 Nyanjigi-style cards
+    _kpis.Add((Icons.Material.Filled.AccountBalanceWallet, "Total revenue", Fmt.Kes(totalRev), "success"));
+    _kpis.Add((Icons.Material.Filled.ErrorOutline, "Outstanding bills", Fmt.Kes(totalOut), "danger"));
+    _kpis.Add((Icons.Material.Filled.TrendingUp, "Pending contributions", Fmt.Kes(pendingCont), "warning"));
+    _kpis.Add((Icons.Material.Filled.People, "Active customers", activeCust.ToString("N0"), "primary"));
+
+    var pts = rev.Result.Rows();
+    _labels = pts.Select(p => p.Str("month", "period", "label", "date")).ToArray();
+    var collected = pts.Select(p => (double)p.Dec("revenue", "totalRevenue", "total", "amount", "collected")).ToArray();
+    // Progressive expected: cumulative collected * 1.12 (target uplift) — structure until real expected API exists
+    double running = 0;
+    var expected = collected.Select(v =>
+    {
+        running += v;
+        return Math.Round(running * 1.12, 2);
+    }).ToArray();
+    if (expected.Length == 0)
+    {
+        // Placeholder series so charts still render structure when API is empty
+        _labels = new[] { "M1", "M2", "M3", "M4", "M5", "M6" };
+        collected = new double[] { 0, 0, 0, 0, 0, 0 };
+        expected = new double[] { 0, 0, 0, 0, 0, 0 };
+    }
+    _series = new() { new ChartSeries { Name = "Revenue", Data = collected } };
+    _seriesCollected = new() { new ChartSeries { Name = "Collected", Data = collected } };
+    _seriesExpected = new()
+    {
+        new ChartSeries { Name = "Expected (progressive)", Data = expected }
+    };
+
+    // Zone pie: revenue share
+    var zoneRevs = _zones.Select(z => (double)z.Dec("totalRevenue", "revenue", "totalPaid", "totalBilled", "totalOutstanding")).ToArray();
+    var zoneNames = _zones.Select(z =>
+    {
+        var n = z.Str("zone", "zoneName", "name");
+        return string.IsNullOrWhiteSpace(n) ? "Zone" : n;
+    }).ToArray();
+    if (zoneRevs.Length == 0 || zoneRevs.All(v => v == 0))
+    {
+        // Keep structure visible with equal slices when no money data
+        zoneNames = _zones.Select((z, i) =>
+        {
+            var n = z.Str("zone", "zoneName", "name");
+            return string.IsNullOrWhiteSpace(n) ? $"Zone {i + 1}" : n;
+        }).DefaultIfEmpty("No zones").ToArray();
+        zoneRevs = zoneNames.Select(_ => 1.0).ToArray();
+    }
+    _zonePieData = zoneRevs;
+    _zonePieLabels = zoneNames;
+
+    var zoneCust = _zones.Select(z => (double)z.Int("activeCustomers", "customerCount", "customers", "count")).ToArray();
+    if (zoneCust.Length == 0 || zoneCust.All(v => v == 0))
+        zoneCust = zoneNames.Select(_ => 1.0).ToArray();
+    _zoneCustPieData = zoneCust;
+    _zoneCustPieLabels = zoneNames;
+    }
+
+    private async Task LoadCustomerDashboard(System.Security.Claims.ClaimsPrincipal user)
+    {
+        var rawCustomerId = user.FindFirst("sub")?.Value
+            ?? user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? user.FindFirst("customer_id")?.Value;
+
+        if (!int.TryParse(rawCustomerId, out var customerId) || customerId <= 0)
+        {
+            _error = "Your authenticated customer identifier is not available.";
+            return;
+        }
+
+        var s = Api.Get(ApiRoutes.AccountSummary(customerId));
+        var b = Api.Get(ApiRoutes.BillsForCustomer(customerId));
+        var p = Api.Get(ApiRoutes.PaymentsForCustomer(customerId));
+
+        await Task.WhenAll(s, b, p);
+
+        _customerSummary = s.Result.Item();
+        _customerBills = b.Result.Rows();
+        _customerPayments = p.Result.Rows();
+
+        if (!s.Result.Success)
+        {
+            _error = s.Result.Message ?? "Could not load your account summary.";
+            return;
+        }
+
+        _customerBalance = _customerSummary?.Dec(
+            "currentBalance",
+            "accountBalance",
+            "balance",
+            "outstandingBalance") ?? 0m;
+
+        _customerOutstanding = _customerSummary?.Dec(
+            "outstandingBalance",
+            "totalOutstanding",
+            "amountDue",
+            "balance") ?? 0m;
+
+        _customerPaymentTotal = _customerPayments.Sum(x =>
+            x.Dec("amountPaid", "amount"));
+
+        _customerStatus = _customerSummary?.Str(
+            "status",
+            "accountStatus") switch
+        {
+            { Length: > 0 } value => value,
+            _ => "Active"
+        };
+
+        _customerAccountNo = _customerSummary?.Str(
+            "accountNo",
+            "accountNumber") ?? string.Empty;
+
+        _customerMeterNo = _customerSummary?.Str(
+            "meterNumber",
+            "meterNo") ?? string.Empty;
+
+        _customerZone = _customerSummary?.Str(
+            "zone",
+            "zoneName") ?? string.Empty;
+    }
+}

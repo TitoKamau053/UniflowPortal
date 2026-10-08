@@ -1,0 +1,16 @@
+<div class="uf-head">
+    <div>
+        <MudText Typo="Typo.h4" Class="uf-title">@Title</MudText>
+        @if (Subtitle is not null)
+        {
+            <MudText Typo="Typo.body2" Class="uf-head-sub">@Subtitle</MudText>
+        }
+    </div>
+    <div class="uf-actions">@ChildContent</div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

@@ -1,0 +1,26 @@
+@inject ApiClient Api
+@inject ISnackbar Snack
+<MudDialog>
+    <DialogContent>
+        <MudNumericField T="decimal" @bind-Value="_amount" Label="Amount paid (KES)" Min="0" Variant="Variant.Outlined" />
+        @if (_err is not null) { <MudAlert Severity="Severity.Error" Class="mt-3">@_err</MudAlert> }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy" OnClick="Submit">Mark paid</MudButton>
+    </DialogActions>
+</MudDialog>
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int ContributionId { get; set; }
+    [Parameter] public decimal Suggested { get; set; }
+    decimal _amount; string? _err; bool _busy;
+    protected override void OnInitialized() => _amount = Suggested;
+    async Task Submit()
+    {
+        _busy = true; _err = null;
+        var r = await Api.Post(ApiRoutes.ContributionPaid(ContributionId), new { amountPaid = _amount });
+        _busy = false;
+        if (r.Success) { Snack.Add("Contribution updated", Severity.Success); MudDialog.Close(DialogResult.Ok(true)); } else _err = r.Message;
+    }
+}

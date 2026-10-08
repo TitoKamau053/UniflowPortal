@@ -1,0 +1,20 @@
+@* Renders the scalar fields of a response object as cards (used for the *stats / *summary endpoints). *@
+@if (Row is not null)
+{
+    <MudGrid Spacing="2" Class="mb-4">
+        @foreach (var s in Row.Scalars.Where(s => !s.Name.EndsWith("Id", StringComparison.OrdinalIgnoreCase)).Take(Max))
+        {
+            <MudItem xs="12" sm="6" md="3">
+                <StatCard Label="@Fmt.Pretty(s.Name)" Value="@Show(s.Name, s.Value)" />
+            </MudItem>
+        }
+    </MudGrid>
+}
+@code {
+    [Parameter] public JsonRow? Row { get; set; }
+    [Parameter] public int Max { get; set; } = 4;
+    static string Show(string name, System.Text.Json.JsonElement v) =>
+        v.ValueKind == System.Text.Json.JsonValueKind.Number
+            ? (Fmt.IsMoney(name) ? Fmt.Kes(v.GetDecimal()) : v.GetDecimal().ToString("N0"))
+            : v.ToString();
+}

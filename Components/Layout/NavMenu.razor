@@ -1,0 +1,298 @@
+@using System.Security.Claims
+@using MudBlazor
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.JSInterop
+@inject PortalAuthStateProvider Auth
+@inject NavigationManager Navigation
+@inject ApiClient Api
+@inject PortalSession Session
+@inject IJSRuntime JS
+@inject ISnackbar Snack
+@using NavItems = NavItems
+@implements IDisposable
+
+@if (!collapseNavMenu || isProfileDropdownOpen)
+{
+    <div class="menu-backdrop" @onclick="CloseAllMenus"></div>
+}
+
+<header class="uf-header">
+    <div class="uf-header-inner">
+
+        <a class="uf-brand" href="/">
+            <img src="/images/uniflow-logo.png?v=2" alt="Uniflow" class="uf-brand-logo" />
+            <span class="uf-brand-name">uniflow</span>
+            <span class="uf-brand-divider"></span>
+            <span class="uf-brand-tag">PORTAL</span>
+        </a>
+
+        @if (_isSuperAdmin)
+        {
+            <div class="uf-scheme-switch">
+                <MudSelect T="int?" Value="_selectedSchemeId" ValueChanged="OnSchemeChanged"
+                           Dense="true" Variant="Variant.Outlined" Margin="Margin.Dense"
+                           Placeholder="Select scheme" Class="uf-scheme-select"
+                           AnchorOrigin="Origin.BottomLeft">
+                    <MudSelectItem T="int?" Value="@((int?)null)">— No scheme —</MudSelectItem>
+                    @foreach (var s in _schemes)
+                    {
+                        var sid = s.Int("schemeID", "schemeId", "id");
+                        <MudSelectItem T="int?" Value="@sid">@s.Str("schemeName", "name")</MudSelectItem>
+                    }
+                </MudSelect>
+            </div>
+        }
+
+        <nav class="uf-nav @(collapseNavMenu ? "" : "open")">
+            @foreach (var item in VisibleItems)
+            {
+                var isActive = IsActive(item.Href);
+
+                if (item.HasChildren)
+                {
+                    <MudMenu AnchorOrigin="Origin.BottomCenter"
+                             TransformOrigin="Origin.TopCenter"
+                             PopoverClass="uf-dropdown"
+                             Dense="true">
+                        <ActivatorContent>
+                            <button type="button" class="uf-nav-link @(isActive ? "active" : "")">
+                                @item.Text
+                                <MudIcon Icon="@Icons.Material.Filled.KeyboardArrowDown" Class="uf-chevron" />
+                            </button>
+                        </ActivatorContent>
+                        <ChildContent>
+                            @foreach (var child in item.VisibleChildren(_user))
+                            {
+                                <MudMenuItem Href="@child.Href" Class="uf-dropdown-item">
+                                    @if (!string.IsNullOrEmpty(child.Icon))
+                                    {
+                                        <MudIcon Icon="@child.Icon" Size="Size.Small" Class="uf-dd-icon" />
+                                    }
+                                    else
+                                    {
+                                        <span class="uf-dd-dot"></span>
+                                    }
+                                    <span>@child.Text</span>
+                                </MudMenuItem>
+                            }
+                        </ChildContent>
+                    </MudMenu>
+                }
+                else
+                {
+                    <a href="@item.Href" class="uf-nav-link @(isActive ? "active" : "")">@item.Text</a>
+                }
+            }
+        </nav>
+
+        <div class="uf-header-right">
+            <button type="button" class="uf-toggler" @onclick="ToggleNavMenu" aria-label="Menu">
+                <MudIcon Icon="@Icons.Material.Filled.Menu" />
+            </button>
+
+            <div class="uf-profile-wrap">
+                <button type="button" class="uf-profile-btn" @onclick="ToggleProfileDropdown">
+                    <img src="@AvatarUrl" alt="@DisplayName" class="uf-avatar-img" />
+                    <span class="uf-profile-name">@DisplayName</span>
+                    <MudIcon Icon="@Icons.Material.Filled.KeyboardArrowDown" Class="uf-chevron" />
+                </button>
+
+                @if (isProfileDropdownOpen)
+                {
+                    <div class="uf-profile-menu">
+                        @* Top identity card *@
+                        <div class="uf-profile-menu-head">
+                            <div class="uf-profile-menu-meta">
+                                <strong>@DisplayName</strong>
+                                <small>@RoleLabel</small>
+                            </div>
+                            <img src="@AvatarUrl" alt="@DisplayName" class="uf-avatar-img lg" />
+                        </div>
+
+                        @* Primary actions *@
+                        <div class="uf-profile-menu-body">
+                            <button type="button" class="uf-profile-item active" @onclick="ManagePassword">
+                                <span class="uf-profile-item-icon">
+                                    <MudIcon Icon="@Icons.Material.Outlined.Person" Size="Size.Small" />
+                                </span>
+                                <span class="uf-profile-item-label">Profile</span>
+                            </button>
+                            <button type="button" class="uf-profile-item" @onclick="GoSettings">
+                                <span class="uf-profile-item-icon">
+                                    <MudIcon Icon="@Icons.Material.Outlined.Settings" Size="Size.Small" />
+                                </span>
+                                <span class="uf-profile-item-label">Settings</span>
+                            </button>
+                            <button type="button" class="uf-profile-item" @onclick="ManagePassword">
+                                <span class="uf-profile-item-icon">
+                                    <MudIcon Icon="@Icons.Material.Outlined.Lock" Size="Size.Small" />
+                                </span>
+                                <span class="uf-profile-item-label">Manage Password</span>
+                            </button>
+                        </div>
+
+                        <div class="uf-profile-menu-divider"></div>
+
+                        @* Footer actions *@
+                        <div class="uf-profile-menu-body">
+                            <button type="button" class="uf-profile-item danger" @onclick="Logout">
+                                <span class="uf-profile-item-icon">
+                                    <MudIcon Icon="@Icons.Material.Outlined.Logout" Size="Size.Small" />
+                                </span>
+                                <span class="uf-profile-item-label">Sign out</span>
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</header>
+
+@code {
+    private ClaimsPrincipal _user = new(new ClaimsIdentity());
+    private List<MenuItem> MenuItems = new();
+    private string _currentUrl = "";
+    private bool collapseNavMenu = true;
+    private bool isProfileDropdownOpen = false;
+
+    private string DisplayName => _user.Identity?.Name ?? "User";
+    private string RoleLabel
+    {
+        get
+        {
+            var role = _user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role || c.Type == "role")?.Value;
+            if (string.IsNullOrWhiteSpace(role)) return "Member";
+            return char.ToUpper(role[0]) + role[1..].ToLowerInvariant();
+        }
+    }
+
+    /// <summary>
+    /// Free online avatar (DiceBear) seeded by username — consistent per user, no local images needed.
+    /// </summary>
+    private string AvatarUrl =>
+        $"https://api.dicebear.com/7.x/avataaars/svg?seed={Uri.EscapeDataString(DisplayName)}&backgroundColor=ed1c24";
+
+    private IEnumerable<MenuItem> VisibleItems =>
+        MenuItems.Where(x => x.IsAllowed(_user) && x.HasVisibleBranch(_user));
+
+    private bool _isSuperAdmin;
+    private List<JsonRow> _schemes = new();
+    private int? _selectedSchemeId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        _currentUrl = Navigation.ToBaseRelativePath(Navigation.Uri);
+        var state = await Auth.GetAuthenticationStateAsync();
+        _user = state.User;
+
+        _isSuperAdmin = _user.IsInRole("superadmin")
+            || _user.HasClaim("role", "superadmin")
+            || _user.HasClaim(System.Security.Claims.ClaimTypes.Role, "superadmin");
+
+        Session.SetUserTypeFromRole(
+            _isSuperAdmin ? "superadmin"
+            : _user.IsInRole("admin") || _user.HasClaim("role", "admin") ? "admin"
+            : _user.IsInRole("customer") || _user.HasClaim("role", "customer") ? "customer"
+            : "");
+
+        await Session.RestoreAsync(JS);
+        await Session.PersistUserTypeAsync(JS);
+        _selectedSchemeId = Session.ActiveSchemeId;
+
+        if (_isSuperAdmin)
+            await LoadSchemes();
+
+        MenuItems = NavItems.ForUser(_user, Session);
+    }
+
+    async Task LoadSchemes()
+    {
+        var r = await Api.Get(ApiRoutes.Schemes);
+        _schemes = r.Success ? r.Rows() : new();
+    }
+
+    async Task OnSchemeChanged(int? id)
+    {
+        _selectedSchemeId = id;
+        string? name = null;
+        if (id is int sid)
+        {
+            var row = _schemes.FirstOrDefault(s => s.Int("schemeID", "schemeId", "id") == sid);
+            name = row?.Str("schemeName", "name");
+        }
+        await Session.SetActiveSchemeAsync(JS, id, name);
+        MenuItems = NavItems.ForUser(_user, Session);
+        await InvokeAsync(StateHasChanged);
+
+        if (id is null)
+        {
+            Snack.Add("Scheme cleared — select a scheme to use ops pages", Severity.Info);
+            Navigation.NavigateTo("/schemes"); // no forceLoad — keeps auth token
+        }
+        else
+        {
+            Snack.Add($"Active scheme: {name} (id {id})", Severity.Success);
+            // Soft navigate so ActiveSchemeId is already in memory for next Api.Get
+            Navigation.NavigateTo("/");
+        }
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        _currentUrl = Navigation.ToBaseRelativePath(Navigation.Uri);
+        CloseAllMenus();
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private bool IsActive(string? href)
+    {
+        if (string.IsNullOrEmpty(href)) return false;
+        var target = href.TrimStart('/');
+        if (target == "") return _currentUrl == "";
+        return _currentUrl.Equals(target, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+        isProfileDropdownOpen = false;
+    }
+
+    private void ToggleProfileDropdown()
+    {
+        isProfileDropdownOpen = !isProfileDropdownOpen;
+        collapseNavMenu = true;
+    }
+
+    private void CloseAllMenus()
+    {
+        collapseNavMenu = true;
+        isProfileDropdownOpen = false;
+    }
+
+    private void ManagePassword()
+    {
+        CloseAllMenus();
+        Navigation.NavigateTo("/manage-password");
+    }
+
+    private void GoSettings()
+    {
+        CloseAllMenus();
+        Navigation.NavigateTo("/settings");
+    }
+
+    private async Task Logout()
+    {
+        bool isSuperAdmin = _user.IsInRole("superadmin") ||
+                            _user.HasClaim("role", "superadmin") ||
+                            _user.HasClaim(ClaimTypes.Role, "superadmin");
+        await Session.ClearAsync(JS);
+        await Api.LogoutAsync(isSuperAdmin);
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+}

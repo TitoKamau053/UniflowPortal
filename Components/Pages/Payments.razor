@@ -1,0 +1,68 @@
+@page "/payments"
+@using Microsoft.JSInterop
+@attribute [Authorize(Roles = "admin,superadmin")]
+@inject ApiClient Api
+@inject PortalSession Session
+@inject NavigationManager Nav
+@inject IDialogService Dialogs
+@inject ISnackbar Snack
+@inject IJSRuntime JS
+
+<PageHeader Title="Payment Management" Subtitle="Track and manage customer payments">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="Record">Record payment</MudButton>
+</PageHeader>
+
+<StatStrip Row="_stats" Max="4" />
+
+<MudTabs Elevation="0" Rounded="true" PanelClass="pt-3">
+    <MudTabPanel Text="Payments">
+        <MudGrid Spacing="2" Class="mb-3">
+            <MudItem xs="12" md="6"><MudTextField @bind-Value="_search" Immediate="true" DebounceInterval="300" OnDebounceIntervalElapsed="_ => _grid!.Reload()" Placeholder="Search payments..." Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="6" md="3"><MudSelect T="string" @bind-Value="_status" Label="Status" Variant="Variant.Outlined" Margin="Margin.Dense" SelectedValuesChanged="_ => _grid!.Reload()"><MudSelectItem T="string" Value="@("")">All status</MudSelectItem><MudSelectItem T="string" Value="@("completed")">Completed</MudSelectItem><MudSelectItem T="string" Value="@("pending")">Pending</MudSelectItem><MudSelectItem T="string" Value="@("failed")">Failed</MudSelectItem></MudSelect></MudItem>
+            <MudItem xs="6" md="3"><MudSelect T="string" @bind-Value="_method" Label="Method" Variant="Variant.Outlined" Margin="Margin.Dense" SelectedValuesChanged="_ => _grid!.Reload()"><MudSelectItem T="string" Value="@("")">All methods</MudSelectItem><MudSelectItem T="string" Value="@("equity")">Equity</MudSelectItem><MudSelectItem T="string" Value="@("manual")">Manual</MudSelectItem></MudSelect></MudItem>
+        </MudGrid>
+        <DataGrid @ref="_grid" Url="@ApiRoutes.PaymentsAll" Cols="_cols" RowFilter="Filter" />
+    </MudTabPanel>
+    <MudTabPanel Text="Receipts">
+        <DataGrid Url="@ApiRoutes.Receipts" Cols="_rcols">
+            <Actions Context="r"><MudButton Size="Size.Small" StartIcon="@Icons.Material.Filled.PictureAsPdf" OnClick="() => Pdf(r)">PDF</MudButton></Actions>
+        </DataGrid>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    DataGrid? _grid; JsonRow? _stats; string _search = "", _status = "", _method = "";
+    readonly List<Col> _cols = new()
+    {
+        new("Customer", new[] { "fullName", "customerName", "name" }, ColKind.Text, new[] { "accountNo", "accountNumber" }),
+        new("Transaction", new[] { "transactionRef", "transactionId", "reference" }, ColKind.Mono),
+        new("Amount", new[] { "amountPaid", "amount" }, ColKind.Money),
+        new("Method", new[] { "paymentMethod", "method", "channel" }),
+        new("Status", new[] { "status" }, ColKind.Status),
+        new("Date", new[] { "paymentDate", "createdAt" }, ColKind.DateTime),
+    };
+    readonly List<Col> _rcols = new()
+    {
+        new("Receipt", new[] { "receiptNumber", "receiptNo", "receiptId", "id" }, ColKind.Mono),
+        new("Customer", new[] { "fullName", "customerName", "name" }, ColKind.Text, new[] { "accountNo", "accountNumber" }),
+        new("Amount", new[] { "amount", "amountPaid" }, ColKind.Money),
+        new("Issued", new[] { "issuedAt", "createdAt", "paymentDate" }, ColKind.DateTime),
+    };
+    bool Filter(JsonRow r) =>
+        (_search == "" || r.Text().Contains(_search, StringComparison.OrdinalIgnoreCase)) &&
+        (_status == "" || r.Str("status").Equals(_status, StringComparison.OrdinalIgnoreCase)) &&
+        (_method == "" || r.Str("paymentMethod", "method", "channel").Contains(_method, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!SchemeGuard.EnsureSchemeOrRedirect(Session, Nav, Snack)) return;
+         var r = await Api.Get(ApiRoutes.PaymentsStats); _stats = r.Item(); }
+    async Task Record() { var d = await Dialogs.ShowAsync<PaymentDialog>("Record payment", Fmt.Dlg); if (!(await d.Result)!.Canceled) await _grid!.Reload(); }
+    async Task Pdf(JsonRow r)
+    {
+        var id = r.Int("receiptId", "id");
+        var bytes = await Api.Bytes(ApiRoutes.ReceiptPdf(id));
+        if (bytes is null) { Snack.Add("Could not download receipt", Severity.Error); return; }
+        await JS.InvokeVoidAsync("saveFile", $"receipt-{id}.pdf", Convert.ToBase64String(bytes), "application/pdf");
+    }
+}

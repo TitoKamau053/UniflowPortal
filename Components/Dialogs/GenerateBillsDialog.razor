@@ -1,0 +1,27 @@
+@inject ApiClient Api
+@inject ISnackbar Snack
+<MudDialog>
+    <DialogContent>
+        <MudDatePicker @bind-Date="_start" Label="Period start" Variant="Variant.Outlined" Class="mb-3" />
+        <MudDatePicker @bind-Date="_end" Label="Period end" Variant="Variant.Outlined" Class="mb-3" />
+        <MudDatePicker @bind-Date="_due" Label="Due date" Variant="Variant.Outlined" />
+        @if (_err is not null) { <MudAlert Severity="Severity.Error" Class="mt-3">@_err</MudAlert> }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy" OnClick="Submit">Generate bills</MudButton>
+    </DialogActions>
+</MudDialog>
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = default!;
+    DateTime? _start = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1), _end = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(1).AddDays(-1), _due = DateTime.Today.AddDays(14);
+    string? _err; bool _busy;
+    async Task Submit()
+    {
+        if (_start is null || _end is null || _due is null) { _err = "All three dates are required."; return; }
+        _busy = true; _err = null;
+        var r = await Api.Post(ApiRoutes.BillsGenerate, new { periodStart = Fmt.Iso(_start), periodEnd = Fmt.Iso(_end), dueDate = Fmt.Iso(_due) });
+        _busy = false;
+        if (r.Success) { Snack.Add(r.Message ?? "Bills generated", Severity.Success); MudDialog.Close(DialogResult.Ok(true)); } else _err = r.Message;
+    }
+}

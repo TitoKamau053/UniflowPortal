@@ -1,0 +1,96 @@
+@inherits LayoutComponentBase
+@using System.Security.Claims
+@using Microsoft.JSInterop
+@inject PortalSession Session
+@inject PortalAuthStateProvider Auth
+@inject IJSRuntime JS
+
+<MudThemeProvider Theme="_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<AuthorizeView>
+    <Authorized>
+        @if (_sessionReady)
+        {
+            <div class="tixx-layout">
+                <NavMenu />
+                <main class="tixx-main">
+                    <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pa-6 pa-md-8">
+                        @Body
+                    </MudContainer>
+                </main>
+            </div>
+        }
+        else
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        }
+    </Authorized>
+    <NotAuthorized>
+        @Body
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private bool _sessionReady;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Restore ActiveSchemeId + UserType BEFORE any page/DataGrid fires Api.Get
+        var state = await Auth.GetAuthenticationStateAsync();
+        var user = state.User;
+
+        var isSuper = user.IsInRole("superadmin")
+            || user.HasClaim("role", "superadmin")
+            || user.HasClaim(ClaimTypes.Role, "superadmin");
+        var isAdmin = user.IsInRole("admin")
+            || user.HasClaim("role", "admin")
+            || user.HasClaim(ClaimTypes.Role, "admin");
+        var isCustomer = user.IsInRole("customer")
+            || user.HasClaim("role", "customer")
+            || user.HasClaim(ClaimTypes.Role, "customer");
+
+        Session.SetUserTypeFromRole(
+            isSuper ? "superadmin" : isAdmin ? "admin" : isCustomer ? "customer" : "");
+
+        await Session.RestoreAsync(JS);
+        await Session.PersistUserTypeAsync(JS);
+
+        _sessionReady = true;
+    }
+
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#ed1c24",
+            Secondary = "#666666",
+            Surface = "#ffffff",
+            Background = "#fafafa",
+            AppbarBackground = "#ffffff",
+            AppbarText = "#1a1a1a",
+            DrawerBackground = "#ffffff",
+            TextPrimary = "#1a1a1a",
+            TextSecondary = "#666666",
+            Error = "#ed1c24",
+            Success = "#16a34a",
+            Warning = "#d97706",
+            Divider = "#eeeeee",
+            LinesDefault = "#eeeeee"
+        },
+        LayoutProperties = new LayoutProperties
+        {
+            DefaultBorderRadius = "8px"
+        },
+        Typography = new Typography
+        {
+            Default = new Default { FontFamily = new[] { "Inter", "sans-serif" }, FontSize = "0.9375rem" },
+            H4 = new H4 { FontSize = "1.5rem", FontWeight = 600 },
+            H5 = new H5 { FontSize = "1.25rem", FontWeight = 600 },
+            H6 = new H6 { FontSize = "0.95rem", FontWeight = 600 },
+            Button = new Button { FontSize = "0.875rem", FontWeight = 500, TextTransform = "none" }
+        }
+    };
+}

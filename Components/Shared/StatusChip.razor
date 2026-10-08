@@ -1,0 +1,14 @@
+@if (!string.IsNullOrWhiteSpace(Text))
+{
+    <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="@Col" Style="font-weight:600">@Text</MudChip>
+}
+@code {
+    [Parameter] public string? Text { get; set; }
+    Color Col => (Text ?? "").ToLowerInvariant() switch
+    {
+        "completed" or "paid" or "active" or "sent" or "success" or "delivered" => Color.Success,
+        "pending" or "partial" or "partially paid" or "queued" => Color.Warning,
+        "overdue" or "failed" or "cancelled" or "inactive" or "suspended" or "waived" => Color.Error,
+        _ => Color.Default
+    };
+}

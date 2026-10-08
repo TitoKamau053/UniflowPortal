@@ -1,0 +1,40 @@
+@inject ApiClient Api
+@inject ISnackbar Snack
+
+<MudTable T="JsonRow" @ref="_t" ServerData="Load" Hover="true" Elevation="0" Class="uf-card" Breakpoint="Breakpoint.Sm" RowsPerPage="@PageSize">
+    <HeaderContent>
+        @foreach (var c in Cols) { <MudTh>@c.Header</MudTh> }
+        @if (Actions is not null) { <MudTh Style="text-align:right">Actions</MudTh> }
+    </HeaderContent>
+    <RowTemplate>
+        @foreach (var c in Cols) { <MudTd DataLabel="@c.Header"><CellView Row="context" Col="c" /></MudTd> }
+        @if (Actions is not null) { <MudTd DataLabel="Actions" Style="text-align:right">@Actions(context)</MudTd> }
+    </RowTemplate>
+    <NoRecordsContent><MudText Class="pa-6" Color="Color.Secondary">Nothing to show.</MudText></NoRecordsContent>
+    <PagerContent><MudTablePager PageSizeOptions="new[] { 10, 20, 50 }" /></PagerContent>
+</MudTable>
+
+@code {
+    [Parameter, EditorRequired] public string Url { get; set; } = "";
+    [Parameter, EditorRequired] public List<Col> Cols { get; set; } = new();
+    /// <summary>Evaluated at load time so the parent's current filter values are always used.</summary>
+    [Parameter] public Func<(string, object?)[]>? Query { get; set; }
+    [Parameter] public Func<JsonRow, bool>? RowFilter { get; set; }
+    [Parameter] public RenderFragment<JsonRow>? Actions { get; set; }
+    [Parameter] public int PageSize { get; set; } = 20;
+    [Parameter] public EventCallback<ApiResponse> OnLoaded { get; set; }
+
+    MudTable<JsonRow>? _t;
+    public Task Reload() => _t is null ? Task.CompletedTask : _t.ReloadServerData();
+
+    async Task<TableData<JsonRow>> Load(TableState s, CancellationToken ct)
+    {
+        var q = (Query?.Invoke() ?? Array.Empty<(string, object?)>()).Concat(new (string, object?)[] { ("page", s.Page + 1), ("pageSize", s.PageSize) }).ToArray();
+        var r = await Api.Get(ApiRoutes.Q(Url, q));
+        if (!r.Success) { Snack.Add(r.Message ?? "Failed to load", Severity.Error); return new TableData<JsonRow> { Items = new List<JsonRow>(), TotalItems = 0 }; }
+        var rows = r.Rows();
+        if (RowFilter is not null) rows = rows.Where(RowFilter).ToList();
+        await OnLoaded.InvokeAsync(r);
+        return new TableData<JsonRow> { Items = rows, TotalItems = Math.Max(r.Total(), rows.Count) };
+    }
+}

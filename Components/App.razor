@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="utf-8" />
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0" />
+
+    <base href="/" />
+
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+          rel="stylesheet" />
+
+    <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
+    <link href="UniflowPortal.styles.css" rel="stylesheet" />
+    <link href="app.css" rel="stylesheet" />
+
+    <HeadOutlet @rendermode="Mode" />
+
+</head>
+
+<body>
+
+<Routes @rendermode="Mode" />
+
+<script src="_framework/blazor.web.js"></script>
+
+<script src="_content/MudBlazor/MudBlazor.min.js"></script>
+
+<script src="/js/login-video.js"></script>
+
+<script src="app.js"></script>
+
+</body>
+
+</html>
+
+@code {
+
+    static readonly IComponentRenderMode Mode =
+        new InteractiveServerRenderMode(prerender: false);
+
+}

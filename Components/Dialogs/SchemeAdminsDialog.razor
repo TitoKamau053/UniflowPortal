@@ -1,0 +1,112 @@
+@inject ApiClient Api
+@inject ISnackbar Snack
+
+<MudDialog>
+    <TitleContent>Scheme admins — @SchemeName</TitleContent>
+    <DialogContent>
+        <div class="d-flex justify-space-between align-center mb-3">
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Manage login accounts for this scheme</MudText>
+            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" OnClick="ShowCreate">Add admin</MudButton>
+        </div>
+
+        @if (_showCreate)
+        {
+            <MudPaper Class="pa-3 mb-3" Elevation="0" Style="border:1px solid #eee;border-radius:8px">
+                <MudTextField @bind-Value="_username" Label="Username" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2" />
+                <MudTextField @bind-Value="_password" Label="Password" InputType="InputType.Password" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2" />
+                <MudTextField @bind-Value="_fullName" Label="Full name" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2" />
+                <MudTextField @bind-Value="_email" Label="Email" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2" />
+                <MudButton Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled" OnClick="Create" Disabled="_busy">Create</MudButton>
+                <MudButton Size="Size.Small" OnClick="() => _showCreate = false">Cancel</MudButton>
+            </MudPaper>
+        }
+
+        <MudTable T="JsonRow" Items="_admins" Dense="true" Hover="true" Elevation="0" Loading="_loading">
+            <HeaderContent>
+                <MudTh>Name</MudTh>
+                <MudTh>Username</MudTh>
+                <MudTh>Email</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.Str("fullName", "name")</MudTd>
+                <MudTd>@context.Str("username", "userName")</MudTd>
+                <MudTd>@context.Str("email")</MudTd>
+                <MudTd><StatusChip Text="@context.Str("status", "isActive")" /></MudTd>
+                <MudTd>
+                    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => Toggle(context)">Toggle</MudButton>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Class="pa-4" Color="Color.Secondary">No admins returned.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Close()">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int SchemeId { get; set; }
+    [Parameter] public string SchemeName { get; set; } = "";
+
+    List<JsonRow> _admins = new();
+    bool _loading = true, _busy, _showCreate;
+    string _username = "", _password = "", _fullName = "", _email = "";
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            var r = await Api.Get(ApiRoutes.SchemeAdmins(SchemeId));
+            _admins = r.Success ? r.Rows() : new();
+            if (!r.Success) Snack.Add(r.Message ?? "Failed to load admins", Severity.Error);
+        }
+        finally { _loading = false; }
+    }
+
+    void ShowCreate() => _showCreate = true;
+
+    async Task Create()
+    {
+        if (string.IsNullOrWhiteSpace(_username) || string.IsNullOrWhiteSpace(_password))
+        {
+            Snack.Add("Username and password required", Severity.Warning);
+            return;
+        }
+        _busy = true;
+        try
+        {
+            var r = await Api.Post(ApiRoutes.SchemeAdmins(SchemeId), new
+            {
+                username = _username.Trim(),
+                password = _password,
+                fullName = _fullName.Trim(),
+                email = _email.Trim()
+            });
+            Snack.Add(r.Success ? "Admin created" : r.Message ?? "Failed", r.Success ? Severity.Success : Severity.Error);
+            if (r.Success)
+            {
+                _showCreate = false;
+                _username = _password = _fullName = _email = "";
+                await Load();
+            }
+        }
+        finally { _busy = false; }
+    }
+
+    async Task Toggle(JsonRow row)
+    {
+        var adminId = row.Int("adminID", "adminId", "id");
+        if (adminId <= 0) return;
+        var r = await Api.Post(ApiRoutes.SchemeAdminToggle(SchemeId, adminId));
+        Snack.Add(r.Success ? "Status updated" : r.Message ?? "Failed", r.Success ? Severity.Success : Severity.Error);
+        if (r.Success) await Load();
+    }
+}

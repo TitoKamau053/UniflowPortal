@@ -1,0 +1,11 @@
+<MudSimpleTable Dense="true" Elevation="0" Style="overflow-x:auto">
+    <thead><tr>@foreach (var c in Cols) { <th>@c.Header</th> }</tr></thead>
+    <tbody>
+        @foreach (var r in Rows) { <tr>@foreach (var c in Cols) { <td><CellView Row="r" Col="c" /></td> }</tr> }
+        @if (!Rows.Any()) { <tr><td colspan="@Cols.Count"><MudText Color="Color.Secondary">No records.</MudText></td></tr> }
+    </tbody>
+</MudSimpleTable>
+@code {
+    [Parameter] public IEnumerable<JsonRow> Rows { get; set; } = Array.Empty<JsonRow>();
+    [Parameter, EditorRequired] public List<Col> Cols { get; set; } = new();
+}

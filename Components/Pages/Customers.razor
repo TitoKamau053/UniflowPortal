@@ -1,0 +1,60 @@
+@page "/customers"
+@attribute [Authorize(Roles = "admin,superadmin")]
+@inject ApiClient Api
+@inject PortalSession Session
+@inject NavigationManager Nav
+@inject IDialogService Dialogs
+@inject ISnackbar Snack
+
+<PageHeader Title="Customer Management" Subtitle="Manage water service customers">
+    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Refresh" OnClick="() => _grid!.Reload()">Refresh</MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="Add">Add customer</MudButton>
+</PageHeader>
+
+<MudGrid Spacing="2" Class="mb-4">
+    <MudItem xs="12" md="6">
+        <MudTextField @bind-Value="_search" Immediate="true" DebounceInterval="400" OnDebounceIntervalElapsed="_ => _grid!.Reload()"
+                      Placeholder="Search by name, account, or phone..." Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Variant="Variant.Outlined" Margin="Margin.Dense" />
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudSelect T="string" @bind-Value="_zone" Label="Zone" Variant="Variant.Outlined" Margin="Margin.Dense" SelectedValuesChanged="_ => _grid!.Reload()">
+            <MudSelectItem T="string" Value="@("")">All zones</MudSelectItem>
+            @foreach (var z in _zones) { <MudSelectItem T="string" Value="@z">@z</MudSelectItem> }
+        </MudSelect>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3"><StatCard Icon="@Icons.Material.Filled.People" Label="Total filtered" Value="@_total.ToString("N0")" /></MudItem>
+</MudGrid>
+
+<DataGrid @ref="_grid" Url="@ApiRoutes.Customers" Cols="_cols" Query="Q" RowFilter="ZoneFilter" OnLoaded="Loaded">
+    <Actions Context="r">
+        <MudTooltip Text="Account & history"><MudIconButton Icon="@Icons.Material.Filled.Info" Size="Size.Small" Color="Color.Info" OnClick="() => View(r)" /></MudTooltip>
+        <MudTooltip Text="Record payment"><MudIconButton Icon="@Icons.Material.Filled.AccountBalanceWallet" Size="Size.Small" Color="Color.Secondary" OnClick="() => Pay(r)" /></MudTooltip>
+        <MudTooltip Text="Edit"><MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Primary" OnClick="() => Edit(r)" /></MudTooltip>
+    </Actions>
+</DataGrid>
+
+@code {
+    protected override void OnInitialized()
+    {
+        SchemeGuard.EnsureSchemeOrRedirect(Session, Nav, Snack);
+    }
+
+    DataGrid? _grid; string _search = "", _zone = ""; int _total; readonly HashSet<string> _zones = new();
+    readonly List<Col> _cols = new()
+    {
+        new("Customer", new[] { "fullName", "customerName", "name" }, ColKind.Text, new[] { "location" }),
+        new("Account", new[] { "accountNo", "accountNumber" }, ColKind.Mono, new[] { "connectionDate" }, ColKind.Date, "Connected: "),
+        new("Zone", new[] { "zone", "zoneName" }),
+        new("Contact", new[] { "phone", "phoneNumber" }),
+        new("Status", new[] { "status", "accountStatus" }, ColKind.Status),
+        new("Balance", new[] { "balance", "currentBalance", "outstandingBalance" }, ColKind.Balance),   // + = debt, - = overpaid (flip in CellView if reversed)
+    };
+    (string, object?)[] Q() => new (string, object?)[] { ("search", _search) };
+    bool ZoneFilter(JsonRow r) => _zone == "" || r.Str("zone", "zoneName") == _zone;
+    Task Loaded(ApiResponse r) { _total = r.Total(); foreach (var x in r.Rows()) { var z = x.Str("zone", "zoneName"); if (z != "") _zones.Add(z); } StateHasChanged(); return Task.CompletedTask; }
+
+    async Task Add() { var d = await Dialogs.ShowAsync<CustomerFormDialog>("Add customer", Fmt.Dlg); if (!(await d.Result)!.Canceled) await _grid!.Reload(); }
+    async Task Edit(JsonRow r) { var d = await Dialogs.ShowAsync<CustomerFormDialog>("Edit customer", new DialogParameters { ["Row"] = r }, Fmt.Dlg); if (!(await d.Result)!.Canceled) await _grid!.Reload(); }
+    async Task Pay(JsonRow r) { var d = await Dialogs.ShowAsync<PaymentDialog>("Record payment", new DialogParameters { ["CustomerId"] = r.Int("customerId", "id"), ["CustomerName"] = r.Str("fullName", "customerName", "name") }, Fmt.Dlg); if (!(await d.Result)!.Canceled) await _grid!.Reload(); }
+    async Task View(JsonRow r) { var d = await Dialogs.ShowAsync<CustomerDetailDialog>(r.Str("fullName", "customerName", "name"), new DialogParameters { ["CustomerId"] = r.Int("customerId", "id") }, Fmt.DlgLg); if ((await d.Result)?.Data is true) await _grid!.Reload(); }
+}

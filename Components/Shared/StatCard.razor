@@ -1,0 +1,37 @@
+<MudPaper Elevation="0" Class="uf-stat-card">
+    <div class="uf-stat-card-top">
+        <span class="uf-stat-card-label">@Label</span>
+        <div class="uf-stat-card-icon" style="background: @GetAccentBg(); color: @GetAccentHex();">
+            <MudIcon Icon="@Icon" Size="Size.Small" />
+        </div>
+    </div>
+    <div class="uf-stat-card-value">@Value</div>
+    @if (Sub is not null)
+    {
+        <div class="uf-stat-card-sub">@Sub</div>
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public string Icon { get; set; } = Icons.Material.Filled.Info;
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public string? Sub { get; set; }
+    [Parameter] public string Accent { get; set; } = "primary";
+
+    private string GetAccentHex() => Accent switch
+    {
+        "success" => "#16a34a",
+        "danger" => "#ed1c24",
+        "warning" => "#d97706",
+        _ => "#ed1c24"
+    };
+
+    private string GetAccentBg() => Accent switch
+    {
+        "success" => "rgba(22, 163, 74, 0.1)",
+        "danger" => "rgba(237, 28, 36, 0.08)",
+        "warning" => "rgba(217, 119, 6, 0.1)",
+        _ => "rgba(237, 28, 36, 0.08)"
+    };
+}
