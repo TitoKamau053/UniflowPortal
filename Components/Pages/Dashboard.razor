@@ -8,6 +8,8 @@
 @inject ApiClient Api
 @inject ISnackbar Snack
 @inject IJSRuntime JS
+@inject PortalSession Session
+@inject NavigationManager Nav
 
 @if (_loading)
 {
@@ -18,7 +20,8 @@ else if (!string.IsNullOrWhiteSpace(_error))
     <MudAlert Severity="Severity.Warning" Class="mb-4">@_error</MudAlert>
 }
 
-@if (_role == "superadmin")
+@* ════════════════════ SUPERADMIN (no scheme selected) ════════════════════ *@
+@if (_role == "superadmin" && !Session.HasActiveScheme)
 {
     <div class="dash-hero">
         <div class="dash-hero-bg"></div>
@@ -30,25 +33,16 @@ else if (!string.IsNullOrWhiteSpace(_error))
                     <span class="dash-badge">Uniflow Portal</span>
                 </div>
                 <div class="dash-hero-stats">
-                    <div class="dash-hero-stat">
-                        <label>Schemes</label>
-                        <strong>@_platformSchemes.Count.ToString("N0")</strong>
-                    </div>
-                    <div class="dash-hero-stat">
-                        <label>Active</label>
-                        <strong>@_platformActiveSchemes.ToString("N0")</strong>
-                    </div>
-                    <div class="dash-hero-stat">
-                        <label>Customers</label>
-                        <strong>@_platformCustomers.ToString("N0")</strong>
-                    </div>
+                    <div class="dash-hero-stat"><label>Schemes</label><strong>@_platformSchemes.Count.ToString("N0")</strong></div>
+                    <div class="dash-hero-stat"><label>Active</label><strong>@_platformActiveSchemes.ToString("N0")</strong></div>
+                    <div class="dash-hero-stat"><label>Customers</label><strong>@_platformCustomers.ToString("N0")</strong></div>
                 </div>
             </div>
             <div class="dash-hero-card">
                 <h4>Signed-in account</h4>
                 <div class="row"><span>User</span><strong>@_userName</strong></div>
                 <div class="row"><span>Role</span><strong>Platform Admin</strong></div>
-                <div class="row"><span>Portal</span><strong>UniflowDB</strong></div>
+                <div class="row"><span>Next step</span><strong>Select a scheme in the header</strong></div>
             </div>
         </div>
     </div>
@@ -67,72 +61,87 @@ else if (!string.IsNullOrWhiteSpace(_error))
         <div class="dash-kpi"><label>With customers</label><strong>@_platformSchemes.Count(x => x.Int("customerCount", "customers", "activeCustomers", "count") > 0).ToString("N0")</strong></div>
     </div>
 
-    <div class="dash-workspace">
-        <div class="dash-panel">
-            <div class="dash-panel-head">
-                <h3>Schemes</h3>
-            </div>
-            <div class="dash-toolbar" style="padding:0.65rem 1rem;border-bottom:1px solid #f5f5f5;">
-                <div class="dash-search">
-                    <MudIcon Icon="@Icons.Material.Outlined.Search" Size="Size.Small" />
-                    <input type="text" placeholder="Search schemes…" readonly />
+    @if (_tab == 0)
+    {
+        <div class="dash-workspace">
+            <div class="dash-panel">
+                <div class="dash-panel-head"><h3>Schemes</h3></div>
+                <div class="dash-chips">
+                    <span class="dash-chip ok">Active <strong>@_platformActiveSchemes</strong></span>
+                    <span class="dash-chip muted">Total <strong>@_platformSchemes.Count</strong></span>
                 </div>
-            </div>
-            <div class="dash-chips">
-                <span class="dash-chip ok">Active <strong>@_platformActiveSchemes</strong></span>
-                <span class="dash-chip muted">Total <strong>@_platformSchemes.Count</strong></span>
-            </div>
-            <div class="dash-panel-body">
-                <div class="dash-list">
-                    @foreach (var scheme in _platformSchemes.Take(8))
-                    {
-                        var name = scheme.Str("schemeName", "name");
-                        var status = scheme.Str("status");
-                        var cust = scheme.Int("customerCount", "customers", "activeCustomers", "count");
-                        <div class="dash-list-item">
-                            <p class="dash-list-title">@(string.IsNullOrEmpty(name) ? "Unnamed scheme" : name)</p>
-                            <div class="dash-list-meta">
-                                <span class="dash-list-status @(status.Equals("active", StringComparison.OrdinalIgnoreCase) ? "active" : "pending")">
-                                    @(string.IsNullOrEmpty(status) ? "—" : status)
-                                </span>
-                                <span class="dash-list-date">@cust customers</span>
-                            </div>
-                            <div class="dash-list-meta" style="margin-top:0.4rem;">
-                                <span class="uf-sub">@scheme.Str("adminUsername", "adminEmail")</span>
-                                <div class="dash-avatars">
-                                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=@Uri.EscapeDataString(name)" alt="" />
+                <div class="dash-panel-body">
+                    <div class="dash-list">
+                        @foreach (var scheme in _platformSchemes.Take(8))
+                        {
+                            var name = scheme.Str("schemeName", "name");
+                            var sid = scheme.Int("schemeID", "schemeId", "id");
+                            var cust = scheme.Int("customerCount", "customers", "activeCustomers", "count");
+                            <div class="dash-list-item" style="cursor:pointer" @onclick="() => EnterSchemeFromDash(scheme)">
+                                <p class="dash-list-title">@(string.IsNullOrEmpty(name) ? "Unnamed scheme" : name)</p>
+                                <div class="dash-list-meta">
+                                    <span class="dash-list-status active">ID @sid</span>
+                                    <span class="dash-list-date">@cust customers</span>
+                                </div>
+                                <div class="uf-sub" style="margin-top:0.35rem">
+                                    Admin: @scheme.Str("adminFullName", "adminUsername", "adminEmail")
                                 </div>
                             </div>
-                        </div>
-                    }
-                    @if (!_platformSchemes.Any())
-                    {
-                        <MudText Color="Color.Secondary" Typo="Typo.caption">No schemes returned.</MudText>
-                    }
+                        }
+                        @if (!_platformSchemes.Any())
+                        {
+                            <MudText Color="Color.Secondary" Typo="Typo.caption">No schemes returned.</MudText>
+                        }
+                    </div>
+                    <MudButton Class="mt-3" Variant="Variant.Outlined" Color="Color.Primary" Href="/schemes">Open schemes hub</MudButton>
+                </div>
+            </div>
+            <div class="dash-panel">
+                <div class="dash-panel-head"><h3>How to operate a scheme</h3></div>
+                <div class="dash-panel-body">
+                    <p class="dash-detail-title">Select a scheme to manage it</p>
+                    <p class="dash-detail-sub">Use the header dropdown or click a scheme on the left / Schemes page. Once selected, the nav shows Customers, Billing, Payments, Operations, and Settings for that scheme. All API calls include <code>?schemeId=</code>.</p>
+                    <ol style="margin:0.75rem 0 0 1.1rem;color:#555;font-size:0.9rem;line-height:1.6">
+                        <li>Pick a scheme in the header</li>
+                        <li>Ops menu appears (Customers, Billing, …)</li>
+                        <li>Switch schemes anytime — data reloads for the new id</li>
+                    </ol>
                 </div>
             </div>
         </div>
-
+    }
+    else if (_tab == 1)
+    {
         <div class="dash-panel">
-            <div class="dash-panel-head"><h3>Scheme analytics</h3></div>
+            <div class="dash-panel-head"><h3>Platform scheme registry</h3></div>
             <div class="dash-panel-body">
-                <p class="dash-detail-title">Platform scheme registry</p>
-                <p class="dash-detail-sub">Schemes currently returned by the platform endpoint</p>
-                <MudTable T="JsonRow" Items="_platformSchemes.Take(10)" Dense="true" Hover="true" Elevation="0" Context="scheme">
+                <MudTable T="JsonRow" Items="_platformSchemes" Dense="true" Hover="true" Elevation="0" Context="scheme">
                     <HeaderContent>
                         <MudTh>Scheme</MudTh>
+                        <MudTh>Admin</MudTh>
                         <MudTh>Customers</MudTh>
                         <MudTh>Status</MudTh>
                         <MudTh>Created</MudTh>
+                        <MudTh></MudTh>
                     </HeaderContent>
                     <RowTemplate>
-                        <MudTd DataLabel="Scheme">
-                            <div>@scheme.Str("schemeName", "name")</div>
-                            <div class="uf-sub">@scheme.Str("adminUsername", "adminEmail")</div>
+                        <MudTd>
+                            <div style="font-weight:600">@scheme.Str("schemeName", "name")</div>
+                            <div class="uf-sub">ID @scheme.Int("schemeID", "schemeId", "id")</div>
+                        </MudTd>
+                        <MudTd>
+                            <div>@scheme.Str("adminFullName", "adminUsername")</div>
+                            <div class="uf-sub">@scheme.Str("adminEmail")</div>
                         </MudTd>
                         <MudTd>@scheme.Int("customerCount", "customers", "activeCustomers", "count").ToString("N0")</MudTd>
                         <MudTd><StatusChip Text="@scheme.Str("status")" /></MudTd>
                         <MudTd>@scheme.Str("createdAt", "createdDate")</MudTd>
+                        <MudTd Style="text-align:right;white-space:nowrap">
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                       OnClick="() => EnterSchemeFromDash(scheme)">Enter</MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Info"
+                                       OnClick="() => OpenSchemeAdmins(scheme)">Admins</MudButton>
+                        </MudTd>
                     </RowTemplate>
                     <NoRecordsContent>
                         <MudText Class="pa-4" Color="Color.Secondary">No schemes were returned.</MudText>
@@ -140,10 +149,54 @@ else if (!string.IsNullOrWhiteSpace(_error))
                 </MudTable>
             </div>
         </div>
-    </div>
+    }
+    else if (_tab == 2)
+    {
+        <div class="dash-panel">
+            <div class="dash-panel-head"><h3>Platform activity</h3></div>
+            <div class="dash-panel-body">
+                <p class="dash-detail-sub">Recent scheme registry (newest first by created date when available).</p>
+                <div class="dash-list">
+                    @foreach (var scheme in _platformSchemes.OrderByDescending(s => s.Str("createdAt", "createdDate")).Take(12))
+                    {
+                        <div class="dash-list-item">
+                            <p class="dash-list-title">@scheme.Str("schemeName", "name")</p>
+                            <div class="dash-list-meta">
+                                <span class="dash-list-status active">@scheme.Str("status")</span>
+                                <span class="dash-list-date">@scheme.Str("createdAt", "createdDate")</span>
+                            </div>
+                            <div class="uf-sub">Admin @scheme.Str("adminFullName", "adminUsername") · @scheme.Int("customerCount", "customers", "count") customers</div>
+                        </div>
+                    }
+                    @if (!_platformSchemes.Any())
+                    {
+                        <MudText Color="Color.Secondary">No activity to show.</MudText>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+    else if (_tab == 3)
+    {
+        <div class="dash-panel">
+            <div class="dash-panel-head"><h3>Platform reports</h3></div>
+            <div class="dash-panel-body">
+                <div class="dash-kpi-row" style="margin:0">
+                    <div class="dash-kpi"><label>Total schemes</label><strong>@_platformSchemes.Count</strong></div>
+                    <div class="dash-kpi"><label>Active</label><strong>@_platformActiveSchemes</strong></div>
+                    <div class="dash-kpi"><label>Customers (sum)</label><strong>@_platformCustomers</strong></div>
+                    <div class="dash-kpi"><label>Empty schemes</label><strong>@_platformSchemes.Count(x => x.Int("customerCount", "customers", "count") == 0)</strong></div>
+                </div>
+                <MudText Class="mt-4" Typo="Typo.body2" Color="Color.Secondary">
+                    Enter a scheme to run collections, customer, and zone reports for that scheme only.
+                </MudText>
+            </div>
+        </div>
+    }
 }
 
-else if (_role == "admin")
+@* ════════════════════ SCHEME ADMIN (and SuperAdmin with scheme selected) ════════════════════ *@
+else if (_role == "admin" || (_role == "superadmin" && Session.HasActiveScheme))
 {
     var revVal = _kpis.FirstOrDefault().value ?? Fmt.Kes(0);
     var outVal = _kpis.ElementAtOrDefault(1).value ?? Fmt.Kes(0);
@@ -154,9 +207,13 @@ else if (_role == "admin")
         <div class="dash-hero-bg dash-hero-bg-water"></div>
         <div class="dash-hero-inner">
             <div>
-                <p class="dash-hero-title">Scheme operations dashboard</p>
+                <p class="dash-hero-title">@(Session.HasActiveScheme ? Session.ActiveSchemeName : "Scheme operations") dashboard</p>
                 <div class="dash-hero-meta">
                     <span class="dash-badge success">Active</span>
+                    @if (Session.HasActiveScheme)
+                    {
+                        <span class="dash-badge">Scheme #@Session.ActiveSchemeId</span>
+                    }
                     <span class="dash-badge">Water utility · @_months mo</span>
                 </div>
                 <div class="dash-hero-stats">
@@ -221,6 +278,7 @@ else if (_role == "admin")
         </div>
     </div>
 
+    @* ── TAB 0: OVERVIEW ── *@
     @if (_tab == 0)
     {
         <div class="dash-chart-grid">
@@ -320,6 +378,7 @@ else if (_role == "admin")
         </div>
     }
 
+    @* ── TAB 1: COLLECTIONS ── *@
     else if (_tab == 1)
     {
         <div class="dash-workspace">
@@ -384,6 +443,7 @@ else if (_role == "admin")
         </div>
     }
 
+    @* ── TAB 2: CUSTOMERS ── *@
     else if (_tab == 2)
     {
         <div class="dash-workspace">
@@ -450,6 +510,7 @@ else if (_role == "admin")
         </div>
     }
 
+    @* ── TAB 3: ZONES ── *@
     else if (_tab == 3)
     {
         <div class="dash-workspace">
@@ -505,6 +566,7 @@ else if (_role == "admin")
         </div>
     }
 
+    @* ── TAB 4: REPORTS ── *@
     else if (_tab == 4)
     {
         <div class="dash-panel">
@@ -680,6 +742,7 @@ else
     private string _role = string.Empty;
     private string _userName = string.Empty;
     private int _tab = 0;
+    private int? _lastSchemeId;
 
     // Scheme admin
     private int _months = 6;
@@ -733,7 +796,11 @@ else
             switch (_role)
             {
                 case "superadmin":
-                    await LoadPlatformDashboard();
+                    // Platform hub when no scheme; scheme ops dashboard when scheme selected
+                    if (Session.HasActiveScheme)
+                        await LoadSchemeDashboard();
+                    else
+                        await LoadPlatformDashboard();
                     break;
                 case "admin":
                     await LoadSchemeDashboard();
@@ -749,6 +816,7 @@ else
         }
         finally
         {
+            _lastSchemeId = Session.ActiveSchemeId;
             _loading = false;
         }
     }
@@ -756,6 +824,35 @@ else
     private void SetTab(int tab)
     {
         _tab = tab;
+        StateHasChanged();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // SuperAdmin: when header scheme changes while already on /, reload dashboard data
+        if (_role != "superadmin") return;
+        var current = Session.ActiveSchemeId;
+        if (current == _lastSchemeId) return;
+        _lastSchemeId = current;
+        _loading = true;
+        _tab = 0;
+        StateHasChanged();
+        try
+        {
+            if (Session.HasActiveScheme)
+                await LoadSchemeDashboard();
+            else
+                await LoadPlatformDashboard();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
     }
 
     private async Task SetMonths(int months)
@@ -778,6 +875,7 @@ else
         }
         finally
         {
+            _lastSchemeId = Session.ActiveSchemeId;
             _loading = false;
         }
     }
@@ -968,6 +1066,34 @@ else
         if (!name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) name += ".pdf";
         await JS.InvokeVoidAsync("saveFile", name, Convert.ToBase64String(bytes), "application/pdf");
         Snack.Add("Receipt downloaded", Severity.Success);
+    }
+    private async Task EnterSchemeFromDash(JsonRow scheme)
+    {
+        var id = scheme.Int("schemeID", "schemeId", "id");
+        if (id <= 0)
+        {
+            Snack.Add("Scheme id missing", Severity.Warning);
+            return;
+        }
+        var name = scheme.Str("schemeName", "name");
+        await Session.SetActiveSchemeAsync(JS, id, name);
+        Snack.Add($"Entered scheme: {name}", Severity.Success);
+        _lastSchemeId = null; // force reload via OnAfterRenderAsync
+        _tab = 0;
+        Nav.NavigateTo("/");
+    }
+
+    private async Task OpenSchemeAdmins(JsonRow scheme)
+    {
+        var id = scheme.Int("schemeID", "schemeId", "id");
+        var name = scheme.Str("schemeName", "name");
+        if (id <= 0)
+        {
+            Snack.Add("Scheme id missing", Severity.Warning);
+            return;
+        }
+        await Session.SetActiveSchemeAsync(JS, id, name);
+        Nav.NavigateTo("/schemes");
     }
 
 }

@@ -291,7 +291,13 @@
                             _user.HasClaim(ClaimTypes.Role, "superadmin");
         await Session.ClearAsync(JS);
         await Api.LogoutAsync(isSuperAdmin);
-        Navigation.NavigateTo("/login", forceLoad: true);
+        var loginPath = isSuperAdmin ? "/login/superadmin"
+            : (_user.IsInRole("admin") || _user.HasClaim("role", "admin") || _user.HasClaim(ClaimTypes.Role, "admin"))
+                ? "/login/admin"
+                : (_user.IsInRole("customer") || _user.HasClaim("role", "customer") || _user.HasClaim(ClaimTypes.Role, "customer"))
+                    ? "/login/customer"
+                    : "/login";
+        Navigation.NavigateTo(loginPath, forceLoad: true);
     }
 
     public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;

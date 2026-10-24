@@ -1,0 +1,90 @@
+@namespace UniflowPortal.Components.Shared.Login
+
+<div class="login-heading">
+    <span class="login-eyebrow">SECURE ACCOUNT ACCESS</span>
+    <h1>@Title</h1>
+    <p>@Subtitle</p>
+</div>
+
+@if (!string.IsNullOrEmpty(Error))
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="login-error">
+        @Error
+    </MudAlert>
+}
+
+<div class="login-form">
+    <label class="login-label">@UserLabel</label>
+    <MudTextField @bind-Value="_username"
+                  Placeholder="@UserPlaceholder"
+                  Variant="Variant.Outlined"
+                  Margin="Margin.Dense"
+                  FullWidth="true"
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.PersonOutline"
+                  Disabled="Busy"
+                  Class="login-input"
+                  Immediate="true" />
+
+    <label class="login-label">Password</label>
+    <MudTextField @bind-Value="_password"
+                  Placeholder="Enter your password"
+                  InputType="InputType.Password"
+                  Variant="Variant.Outlined"
+                  Margin="Margin.Dense"
+                  FullWidth="true"
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.Lock"
+                  Disabled="Busy"
+                  Class="login-input"
+                  Immediate="true"
+                  OnKeyUp="HandleKeyUp" />
+
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               FullWidth="true"
+               Size="Size.Large"
+               Disabled="Busy"
+               OnClick="SubmitAsync"
+               Class="login-submit">
+        @if (Busy)
+        {
+            <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+            <span>Signing in, Please Wait</span>
+        }
+        else
+        {
+            <span>Sign in</span>
+            <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Class="ml-2" />
+        }
+    </MudButton>
+</div>
+
+@code {
+    private string _username = string.Empty;
+    private string _password = string.Empty;
+
+    [Parameter] public string Title { get; set; } = "Sign in";
+    [Parameter] public string Subtitle { get; set; } = "";
+    [Parameter] public string UserLabel { get; set; } = "Username";
+    [Parameter] public string UserPlaceholder { get; set; } = "Enter your username";
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public EventCallback<LoginCredentials> OnSubmit { get; set; }
+
+    private async Task HandleKeyUp(KeyboardEventArgs e)
+    {
+        if (string.Equals(e.Key, "Enter", StringComparison.OrdinalIgnoreCase))
+            await SubmitAsync();
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (Busy) return;
+        await OnSubmit.InvokeAsync(new LoginCredentials
+        {
+            Username = (_username ?? string.Empty).Trim(),
+            Password = _password ?? string.Empty
+        });
+    }
+}

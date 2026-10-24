@@ -1,0 +1,57 @@
+@page "/login/customer"
+@layout LoginLayout
+@using UniflowPortal.Components.Shared.Login
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<LoginShell Caption="Customer portal">
+    <LoginForm Title="Customer Portal"
+               Subtitle="Sign in to view your account, bills, and services."
+               UserLabel="Account number"
+               UserPlaceholder="Enter your account number"
+               Error="@_error"
+               Busy="_busy"
+               OnSubmit="Submit" />
+</LoginShell>
+
+@code {
+    string? _error;
+    bool _busy;
+
+    async Task Submit(LoginCredentials creds)
+    {
+        if (_busy) return;
+        _error = null;
+
+        if (string.IsNullOrWhiteSpace(creds.Username))
+        {
+            _error = "Please enter your account number.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(creds.Password))
+        {
+            _error = "Please enter your password.";
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var result = await Api.CustomerLoginAsync(creds.Username, creds.Password);
+            if (result.Success)
+            {
+                Nav.NavigateTo("/");
+                return;
+            }
+            _error = result.Message ?? "Unable to sign in. Check your credentials.";
+        }
+        catch
+        {
+            _error = "Unable to connect to the authentication service. Please try again.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

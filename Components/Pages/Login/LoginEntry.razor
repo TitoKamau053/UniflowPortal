@@ -1,0 +1,9 @@
+@page "/login"
+@layout LoginLayout
+@inject NavigationManager Nav
+
+@* Do not expose portal types. Always send generic /login to scheme admin. *@
+@code {
+    protected override void OnInitialized()
+        => Nav.NavigateTo("/login/admin", replace: true);
+}

@@ -1,0 +1,58 @@
+@page "/login/admin"
+@page "/login/scheme-admin"
+@layout LoginLayout
+@using UniflowPortal.Components.Shared.Login
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<LoginShell Caption="Scheme administration">
+    <LoginForm Title="Scheme Administrator"
+               Subtitle="Sign in to manage customers, billing, and operations for your scheme."
+               UserLabel="Username"
+               UserPlaceholder="Enter your username"
+               Error="@_error"
+               Busy="_busy"
+               OnSubmit="Submit" />
+</LoginShell>
+
+@code {
+    string? _error;
+    bool _busy;
+
+    async Task Submit(LoginCredentials creds)
+    {
+        if (_busy) return;
+        _error = null;
+
+        if (string.IsNullOrWhiteSpace(creds.Username))
+        {
+            _error = "Please enter your username.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(creds.Password))
+        {
+            _error = "Please enter your password.";
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var result = await Api.AdminLoginAsync(creds.Username, creds.Password);
+            if (result.Success)
+            {
+                Nav.NavigateTo("/");
+                return;
+            }
+            _error = result.Message ?? "Unable to sign in. Check your credentials.";
+        }
+        catch
+        {
+            _error = "Unable to connect to the authentication service. Please try again.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}
